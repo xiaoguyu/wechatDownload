@@ -1,0 +1,10 @@
+node_modules
+__pycache__
+readme/todo.md
+out/
+eSearch
+.VSCodeCounter/
+ocr/ppocr
+.DS_Store
+build
+preload_config

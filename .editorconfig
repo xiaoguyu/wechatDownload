@@ -1,0 +1,15 @@
+root = true
+
+[*]
+# 编码格式
+charset = utf-8
+# 缩进方式
+indent_style = space
+# 缩进空格数
+indent_size = 2
+# 定义换行符
+end_of_line = lf
+# 文件是否以空白行结尾
+insert_final_newline = true
+# 是否去处行首行尾的空白字符
+trim_trailing_whitespace = true
