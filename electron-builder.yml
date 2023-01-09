@@ -1,5 +1,5 @@
 appId: com.electron.app
-productName: com.javaedit
+productName: wechatDownload
 directories:
   buildResources: build
 files:
@@ -12,7 +12,7 @@ asarUnpack:
   - '**/*.{node,dll}'
 afterSign: build/notarize.js
 win:
-  executableName: com.javaedit
+  executableName: wechatDownload
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

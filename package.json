@@ -1,5 +1,5 @@
 {
-  "name": "com.javaedit",
+  "name": "wechatDownload",
   "version": "1.0.0",
   "description": "A minimal Electron application with TypeScript",
   "main": "./out/main/index.js",
@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "@electron-toolkit/preload": "^1.0.2",
-    "@electron-toolkit/utils": "^1.0.2"
+    "@electron-toolkit/utils": "^1.0.2",
+    "electron-store": "^8.1.0"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",

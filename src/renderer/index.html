@@ -3,7 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <title>Electron</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
@@ -13,96 +12,139 @@
   </head>
 
   <body>
-    <div class="container">
-      <ul class="versions">
-        <li class="electron-version"></li>
-        <li class="chrome-version"></li>
-        <li class="node-version"></li>
-        <li class="v8-version"></li>
+    <div class="menu">
+      <ul class="menu-ul">
+        <li value="main-contain" class="active">主页面</li>
+        <li value="setting-contain">设置中心</li>
       </ul>
-
-      <img class="hero-logo" src="./assets/icons.svg" />
-      <h2 class="hero-text">You've successfully created an Electron project with TypeScript</h2>
-      <p class="hero-tagline">Please try pressing <code>F12</code> to open the devTool</p>
-
-      <div class="links">
-        <div class="link-item">
-          <a target="_blank" href="https://evite.netlify.app">Documentation</a>
+    </div>
+    <div class="contain">
+      <!-- 主页面 -->
+      <div class="cselect main-contain">
+        <div class="tool-div">
+          <input id="url-input" placeholder="输入微信链接，点击右侧下载按钮" />
+          <button>下载</button>
+          <button>批量下载</button>
         </div>
-        <div class="link-item link-dot">•</div>
-        <div class="link-item">
-          <a target="_blank" href="https://github.com/alex8088/electron-vite">Getting Help</a>
-        </div>
-        <div class="link-item link-dot">•</div>
-        <div class="link-item">
-          <a
-            target="_blank"
-            href="https://github.com/alex8088/quick-start/tree/master/packages/create-electron"
-          >
-            create-electron
-          </a>
+        <div class="log-div">
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
+          <p>
+            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
+          </p>
+          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
+          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
+          <hr />
         </div>
       </div>
 
-      <div class="features">
-        <div class="feature-item">
-          <article>
-            <h2 class="title">Configuring</h2>
-            <p class="detail">
-              Config with <span>electron.vite.config.ts</span> and refer to the
-              <a target="_blank" href="https://evite.netlify.app/config/">config guide</a>.
-            </p>
-          </article>
+      <!-- 设置页面 -->
+      <div class="cselect setting-contain">
+        <div class="top">
+          首次运行需要安装证书，请手动完成此设置：<button id="open-licence">打开证书路径</button>
         </div>
-        <div class="feature-item">
-          <article>
-            <h2 class="title">HMR</h2>
-            <p class="detail">
-              Edit <span>src/renderer</span> files to test HMR. See
-              <a target="_blank" href="https://evite.netlify.app/guide/hmr-in-renderer.html">docs</a
-              >.
-            </p>
-          </article>
+        <div class="middle">
+          <div class="left">
+            <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
+            <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
+            <div title="不勾选则使用网络图片" class="item">
+              <input type="checkbox" name="dlImg" />下载图片到本地
+            </div>
+            <div title="不勾选则覆盖现有文章" class="item">
+              <input type="checkbox" name="skinExist" />跳过现有文章
+            </div>
+          </div>
+          <div class="right">
+            <div class="item dl-scpoe">
+              下载范围<br />
+              <input type="radio" name="dlScpoe" value="all" />全部
+              <input type="radio" name="dlScpoe" value="one" />今日
+              <input type="radio" name="dlScpoe" value="seven" />7天内
+              <input type="radio" name="dlScpoe" value="month" />一个月内<br />
+              <input type="radio" name="dlScpoe" value="diy" />自定义
+              <input type="date" name="startData" /> ~ <input type="date" name="endData" />
+            </div>
+          </div>
         </div>
-        <div class="feature-item">
-          <article>
-            <h2 class="title">Hot Reloading</h2>
-            <p class="detail">
-              Run <span>'electron-vite dev --watch'</span> to enable. See
-              <a target="_blank" href="https://evite.netlify.app/guide/hot-reloading.html">docs</a>.
-            </p>
-          </article>
-        </div>
-        <div class="feature-item">
-          <article>
-            <h2 class="title">Debugging</h2>
-            <p class="detail">
-              Check out <span>.vscode/launch.json</span>. See
-              <a target="_blank" href="https://evite.netlify.app/guide/debugging.html">docs</a>.
-            </p>
-          </article>
-        </div>
-        <div class="feature-item">
-          <article>
-            <h2 class="title">Source Code Protection</h2>
-            <p class="detail">
-              Supported via built-in plugin <span>bytecodePlugin</span>. See
-              <a target="_blank" href="https://evite.netlify.app/guide/source-code-protection.html">
-                docs
-              </a>
-              .
-            </p>
-          </article>
-        </div>
-        <div class="feature-item">
-          <article>
-            <h2 class="title">Packaging</h2>
-            <p class="detail">
-              Use
-              <a target="_blank" href="https://www.electron.build">electron-builder</a>
-              and pre-configured to pack your app.
-            </p>
-          </article>
+        <div class="foot">
+          <div class="foot-item">
+            <div>保存路径</div>
+            <div class="item">
+              <input type="text" name="savePath" disabled />
+              <button>选择路径</button>
+            </div>
+          </div>
+          <div class="foot-item">
+            <div>缓存路径</div>
+            <div class="item">
+              <input type="text" name="tmpPath" disabled />
+              <button>选择路径</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

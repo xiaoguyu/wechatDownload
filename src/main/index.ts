@@ -1,6 +1,25 @@
-import { app, shell, BrowserWindow } from 'electron';
+import { app, shell, ipcMain, BrowserWindow } from 'electron';
+import { electronApp, is } from '@electron-toolkit/utils';
+import Store from 'electron-store';
 import * as path from 'path';
-import { electronApp, optimizer, is } from '@electron-toolkit/utils';
+import * as fs from 'fs';
+import * as os from 'os';
+
+const store = new Store();
+
+console.log('store.path', store.path);
+
+// 创建文件夹
+// if (!fs.existsSync(tmpDirPath)) fs.mkdir(tmpDirPath, () => {});
+
+const default_setting = {
+  firstRun: false,
+  dlMarkdown: 1,
+  // 缓存目录
+  tmpPath: path.join(os.tmpdir(), 'wechatDownload'),
+  // 在安装目录下创建文章的保存路径
+  savePath: path.join(path.dirname(app.getPath('exe')), 'savePath')
+};
 
 function createWindow(): void {
   // Create the browser window.
@@ -36,20 +55,26 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+
+  // 打开f12调试
+  mainWindow.webContents.openDevTools();
 }
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron');
+  if (store.get('firstRun') === undefined) setDefaultSetting();
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+  // Set app user model id for windows
+  electronApp.setAppUserModelId('com.javaedit');
+
+  // electron-store的api
+  ipcMain.on('electron-store-get', async (event, val) => {
+    event.returnValue = store.get(val);
+  });
+  ipcMain.on('electron-store-set', async (_event, key, val) => {
+    store.set(key, val);
   });
 
   createWindow();
@@ -70,5 +95,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-// In this file you can include the rest of your app"s specific main process
-// code. You can also put them in separate files and require them here.
+function setDefaultSetting() {
+  for (const i in default_setting) {
+    store.set(i, default_setting[i]);
+  }
+}
