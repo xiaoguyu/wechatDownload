@@ -1,5 +1,11 @@
+import { OpenDialogOptions } from 'electron';
+
 export function init(): void {
   window.addEventListener('DOMContentLoaded', () => {
+    // 添加下载按钮事件
+    addDlOneEvent();
+    // 添加批量下载按钮事件
+    addDlBatchEvent();
     // 初始化设置中心的表单
     initSetting();
     // 添加导航菜单切换事件绑定
@@ -8,20 +14,70 @@ export function init(): void {
     addSettingEvent();
     // 打开证书路径事件绑定
     addOpenLicenceEvent();
+    // 选择保存路径
+    addChoseSavePathEvent();
+    // 选择缓存路径
+    addChoseTmpPathEvent();
+    // main -> render的事件
+    addCallbackEvent();
   });
+}
+/*
+ * 添加下载按钮事件
+ */
+async function addDlOneEvent() {
+  const dlOneEle = document.getElementById('dlOne');
+  const urlInputEle = <HTMLInputElement>document.getElementById('url-input');
+  if (dlOneEle && urlInputEle) {
+    dlOneEle.onclick = () => {
+      const url = urlInputEle.value;
+      const checkResult = checkURL(url);
+      if (!checkResult) {
+        alert('请输入正确的url');
+        return;
+      }
+      // 下载详情页数据
+      window.electronApi.downloadOne(url);
+    };
+  }
+}
+
+/*
+ * 校验url
+ */
+function checkURL(URL): boolean {
+  const str = URL;
+  const Expression = /^(https?:\/\/)([0-9a-z.]+)(:[0-9]+)?([/0-9a-z.]+)?(\?[0-9a-z&=]+)?(#[0-9-a-z]+)?/i;
+  if (Expression.test(str) == true) {
+    return true;
+  }
+  return false;
+}
+
+/*
+ * 添加批量下载按钮事件
+ */
+async function addDlBatchEvent() {
+  const dlBatchEle = document.getElementById('dlBatch');
+  if (dlBatchEle) {
+    dlBatchEle.onclick = () => {
+      window.electronApi.monitorArticle();
+      dlBatchEle.style.display = 'none';
+    };
+  }
 }
 
 /*
  * 初始化设置中心的表单
  */
-function initSetting() {
+async function initSetting() {
   fillInput('.setting-contain .middle input');
   fillInput('.setting-contain .foot input');
 }
 
-function fillInput(selectPath: string) {
+async function fillInput(selectPath: string) {
   document.querySelectorAll<HTMLInputElement>(selectPath).forEach((inputEle) => {
-    const defaultVal = window.electronApi.store.get(inputEle.name);
+    const defaultVal = storeGet(inputEle.name);
 
     if (defaultVal) {
       if (inputEle.type === 'checkbox') {
@@ -42,7 +98,7 @@ function fillInput(selectPath: string) {
 /*
  * 添加导航菜单切换事件绑定
  */
-function addMenuEvent() {
+async function addMenuEvent() {
   document.querySelectorAll('.menu-ul li').forEach((obj) => {
     const liEle = <HTMLElement>obj;
     liEle.onclick = () => {
@@ -59,7 +115,6 @@ function addMenuEvent() {
       const containDivClass = liEle.getAttribute('value') || '';
       document.querySelectorAll('.contain .cselect').forEach((inObj) => {
         const containDiv = <HTMLElement>inObj;
-        console.log('containDiv', containDiv);
         if (containDiv.classList.contains(containDivClass)) {
           containDiv.style.display = 'block';
         } else {
@@ -73,7 +128,7 @@ function addMenuEvent() {
 /*
  * 设置中心事件绑定
  */
-function addSettingEvent() {
+async function addSettingEvent() {
   addInputEvent('.setting-contain .middle input');
   addInputEvent('.setting-contain .foot .save-path input');
 }
@@ -98,20 +153,117 @@ function addInputEvent(selectPath: string) {
   });
 }
 
-function addOpenLicenceEvent() {
+/*
+ * 打开证书路径事件
+ */
+async function addOpenLicenceEvent() {
   const openLicenceButton = document.getElementById('open-licence');
   if (openLicenceButton) {
     openLicenceButton.onclick = () => {
-      window.electronApi.openPath('D:\\');
+      window.electronApi.openPath(storeGet('caPath'));
+    };
+  }
+}
+/*
+ * 选择保存路径事件
+ */
+async function addChoseSavePathEvent() {
+  const choseSavePathEle = document.getElementById('choseSavePath');
+  if (choseSavePathEle) {
+    choseSavePathEle.onclick = () => {
+      const options: OpenDialogOptions = {
+        title: '请选择保存路径',
+        defaultPath: storeGet('savePath'),
+        properties: ['openDirectory']
+      };
+      window.electronApi.showOpenDialog(options, 'savePath');
+    };
+  }
+}
+/*
+ * 选择缓存路径事件
+ */
+async function addChoseTmpPathEvent() {
+  const choseSavePathEle = document.getElementById('choseTmpPath');
+  if (choseSavePathEle) {
+    choseSavePathEle.onclick = () => {
+      const options: OpenDialogOptions = {
+        title: '请选择缓存路径',
+        defaultPath: storeGet('tmpPath'),
+        properties: ['openDirectory']
+      };
+      window.electronApi.showOpenDialog(options, 'tmpPath');
     };
   }
 }
 
-// function storeGet(key: string): any {
-//   window.electronApi.store.get(key);
-// }
+/*
+ * main -> render的事件
+ */
+async function addCallbackEvent() {
+  // 选择路径后的回调
+  window.electronApi.openDialogCallback(async (_event, callbackMsg: string, pathStr: string) => {
+    const inputEle = <HTMLInputElement>document.getElementById(callbackMsg);
+    if (inputEle) {
+      inputEle.value = pathStr;
+    }
+  });
+  // 输出日志
+  window.electronApi.outputLog((_event, msg: string, flgAppend = false, flgHtml = false) => {
+    outputLog(msg, flgAppend, flgHtml);
+  });
+  // 确认选择的公号文章是否正确
+  window.electronApi.confirmTitle(async (_event, title) => {
+    const infoMsg = `确认批量下载【${title}】所属公号的文章吗？`;
+    if (window.confirm(infoMsg)) {
+      window.electronApi.confirmDownload(true);
+    } else {
+      window.electronApi.confirmDownload(false);
+    }
+  });
+  // 下载完成
+  window.electronApi.downloadFnish(async () => {
+    const dlBatchEle = document.getElementById('dlBatch');
+    if (dlBatchEle) {
+      dlBatchEle.style.display = 'inline-block';
+    }
+  });
+}
+/*
+ * 输出日志到主页面
+ * msg：输出的消息
+ * append：是否追加
+ * flgHtml：消息是否是html
+ */
+async function outputLog(msg: string, flgAppend = false, flgHtml = false) {
+  const logDivEle = <HTMLElement>document.getElementById('log-div');
+  if (logDivEle) {
+    if (flgAppend) {
+      let ele;
+      if (flgHtml) {
+        const divEle = document.createElement('div');
+        divEle.innerHTML = msg;
+        ele = divEle.childNodes[0];
+      } else {
+        ele = document.createElement('p');
+        ele.innerHTML = msg;
+      }
+      logDivEle.appendChild(ele);
+    } else {
+      if (flgHtml) {
+        logDivEle.innerHTML = msg;
+      } else {
+        logDivEle.innerHTML = '<p>' + msg + '</p>';
+      }
+    }
+  }
+}
 
-function storeSet(key: string, value: string | number): void {
+function storeGet(key: string): any {
+  return window.electronApi.store.get(key);
+}
+
+async function storeSet(key: string, value: string | number) {
   window.electronApi.store.set(key, value);
 }
 

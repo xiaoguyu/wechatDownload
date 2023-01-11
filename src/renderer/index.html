@@ -3,10 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Electron</title>
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
-    />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
 
     <link href="./assets/styles.css" type="text/css" rel="stylesheet" />
   </head>
@@ -23,110 +20,37 @@
       <div class="cselect main-contain">
         <div class="tool-div">
           <input id="url-input" placeholder="输入微信链接，点击右侧下载按钮" />
-          <button>下载</button>
-          <button>批量下载</button>
+          <button id="dlOne">下载</button>
+          <button id="dlBatch">批量下载</button>
         </div>
-        <div class="log-div">
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
-          <p>
-            http://mp.weixin.qq.com/s?__biz=MzU0MjYwNDU2Mw==&amp;mid=2247507396&amp;idx=1&amp;sn=0f97ecf7f898325288328c3201a14a87&amp;chksm=fb1ab1b8cc6d38ae551975054a4f94945c6feee387a737d3102aaa666a80d3350fc1c3f1b5aa&amp;scene=27#wechat_redirect
-          </p>
-          <p>正在下载【过去的这个非农夜什么也改变不了，一切都是命运的安排】...</p>
-          <p>【过去的这个非农夜什么也改变不了，一切都是命运的安排】下载完成，共10张图片</p>
-          <hr />
+        <div id="log-div" class="log-div">
+          <div class="desc-div">
+            <p>初次运行请花点时间看看此说明！</p>
+            <p>输入连接链接可直接使用，批量下载功能需要因为需要开启代理</p>
+            <p>使用代理需要安装证书，证书路径请前往设置中心查看</p>
+            <p>Window：证书直接双击 rootCA.crt 安装即可</p>
+            <p>Mac：别问我，问就是没Mac</p>
+            <p>Ubuntu：别问，懒得测</p>
+            <p>电脑没法上网可能是代理问题，试试打开此软件再关闭软件</p>
+          </div>
         </div>
       </div>
 
       <!-- 设置页面 -->
       <div class="cselect setting-contain">
-        <div class="top">
-          首次运行需要安装证书，请手动完成此设置：<button id="open-licence">打开证书路径</button>
-        </div>
+        <div class="top">首次运行需要安装证书(安装一次即可)，请手动完成此设置：<button id="open-licence">打开证书路径</button></div>
         <div class="middle">
           <div class="left">
             <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
             <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
-            <div title="不勾选则使用网络图片" class="item">
-              <input type="checkbox" name="dlImg" />下载图片到本地
-            </div>
-            <div title="不勾选则覆盖现有文章" class="item">
-              <input type="checkbox" name="skinExist" />跳过现有文章
-            </div>
+            <div title="不勾选则使用网络图片" class="item"><input type="checkbox" name="dlImg" />下载图片到本地</div>
+            <div title="不勾选则覆盖现有文章" class="item"><input type="checkbox" name="skinExist" />跳过现有文章</div>
           </div>
           <div class="right">
             <div class="item dl-scpoe">
               下载范围<br />
-              <input type="radio" name="dlScpoe" value="all" />全部
-              <input type="radio" name="dlScpoe" value="one" />今日
-              <input type="radio" name="dlScpoe" value="seven" />7天内
-              <input type="radio" name="dlScpoe" value="month" />一个月内<br />
-              <input type="radio" name="dlScpoe" value="diy" />自定义
-              <input type="date" name="startData" /> ~ <input type="date" name="endData" />
+              <input type="radio" name="dlScpoe" value="all" />全部 <input type="radio" name="dlScpoe" value="one" />今日 <input type="radio" name="dlScpoe" value="seven" />7天内 <input type="radio" name="dlScpoe" value="month" />一个月内<br />
+              <input type="radio" name="dlScpoe" value="diy" />自定义 <input type="date" name="startDate" /> ~ <input type="date" name="endDate" />
             </div>
           </div>
         </div>
@@ -134,15 +58,15 @@
           <div class="foot-item">
             <div>保存路径</div>
             <div class="item">
-              <input type="text" name="savePath" disabled />
-              <button>选择路径</button>
+              <input type="text" id="savePath" name="savePath" disabled />
+              <button id="choseSavePath">选择路径</button>
             </div>
           </div>
           <div class="foot-item">
             <div>缓存路径</div>
             <div class="item">
-              <input type="text" name="tmpPath" disabled />
-              <button>选择路径</button>
+              <input type="text" id="tmpPath" name="tmpPath" disabled />
+              <button id="choseTmpPath">选择路径</button>
             </div>
           </div>
         </div>

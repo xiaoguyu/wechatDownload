@@ -75,7 +75,7 @@ body {
 }
 
 .main-contain {
-  display: none;
+  /* display: none; */
 }
 
 .main-contain input {
@@ -99,6 +99,7 @@ body {
 
 .main-contain .log-div {
   margin-top: 60px;
+  padding-bottom: 10px;
 }
 
 .main-contain .log-div p {
@@ -106,8 +107,20 @@ body {
   word-break: break-all;
 }
 
+.main-contain .log-div .desc-div {
+  font-size: 16px;
+  /* text-align: center; */
+  width: 60%;
+  margin: 100px auto;
+}
+
+.main-contain .log-div .desc-div p {
+  margin: 15px 0px 0px 0px;
+  word-break: break-all;
+}
+
 .setting-contain {
-  /* display: none; */
+  display: none;
 }
 
 .setting-contain .top button {
