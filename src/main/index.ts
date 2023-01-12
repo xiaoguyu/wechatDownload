@@ -284,7 +284,9 @@ async function monitorArticle() {
   // 开启代理
   AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001');
   AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001', 'https');
-  outputLog(`代理开启成功，准备批量下载，请在微信打开任意一篇需要批量下载的公号的文章`);
+  outputLog(`代理开启成功，准备批量下载...`);
+  outputLog(`请在微信打开任意一篇需要批量下载的公号的文章`, true);
+  outputLog(`别偷懒，已经打开的不算...`, true);
 
   // 10秒之后自动关闭代理
   TIMER = setTimeout(() => {
