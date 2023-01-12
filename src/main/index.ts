@@ -7,15 +7,16 @@ import * as AnyProxy from 'anyproxy';
 import * as path from 'path';
 import * as Readability from '@mozilla/readability';
 import * as fs from 'fs';
-import { HttpUtil, StrUtil, FileUtil } from './utils';
-import { GzhInfo, ArticleInfo, Service } from './service';
+import { HttpUtil, StrUtil, FileUtil, DateUtil } from './utils';
+import { GzhInfo, ArticleInfo, DownloadOption, Service } from './service';
 
 const cheerio = require('cheerio');
 const { JSDOM } = require('jsdom');
-const TurndownService = require('turndown');
-const turndownService = new TurndownService();
 const store = new Store();
 const service = new Service();
+// html转markdown的TurndownService
+const turndownService = service.createTurndownService();
+
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
 let MAIN_WINDOW: BrowserWindow;
@@ -25,7 +26,7 @@ let GZH_INFO: GzhInfo;
 let TIMER: NodeJS.Timeout;
 
 // 配置的保存文件的路径
-// console.log('store.path', store.path);
+console.log('store.path', store.path);
 
 function createWindow(): void {
   MAIN_WINDOW = new BrowserWindow({
@@ -115,8 +116,6 @@ app.whenReady().then(() => {
   createWindow();
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
@@ -131,46 +130,60 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
 /*
  * 下载单个页面
  */
 async function downloadOne(url: string) {
   outputLog(`正在下载文章，url：${url}`);
 
-  await axiosDlOne(url);
+  const articleInfo = new ArticleInfo(null, null, url);
+  const downloadOption = service.loadDownloadOption();
+  await axiosDlOne(articleInfo, downloadOption);
 
   outputLog('<hr />', true, true);
 }
 
-async function axiosDlOne(url: string) {
-  const response = await axios.get(url);
+async function axiosDlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
+  const response = await axios.get(articleInfo.contentUrl);
   if (response.status != 200) {
-    outputLog(`下载失败，状态码：${response.status}, URL:${url}`, true);
+    outputLog(`下载失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`, true);
     return;
   }
-  await dlOne(url, response.data);
+  articleInfo.html = response.data;
+  await dlOne(articleInfo, downloadOption);
 }
 
 /*
  * 下载单个页面
  */
-async function dlOne(url: string, html: string) {
+async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
   // 预处理微信公号文章html
-  const htmlStr = service.prepHtml(html);
+  if (!articleInfo.html) return;
+  const url = articleInfo.contentUrl;
+  const htmlStr = service.prepHtml(articleInfo.html);
   // 提取正文
   const doc = new JSDOM(htmlStr);
-  const reader = new Readability.Readability(<Document>doc.window.document);
+  const reader = new Readability.Readability(<Document>doc.window.document, { keepClasses: true });
   const article = reader.parse();
   if (!article) {
     outputLog('提取正文失败', true);
     return;
   }
   // 创建保存文件夹和缓存文件夹
-  const savePath = path.join(<string>store.get('savePath'), StrUtil.strToDirName(article.title));
+  const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
+  const saveDirName = StrUtil.strToDirName(article.title);
+  const savePath = path.join(downloadOption.savePath || '', timeStr + saveDirName);
   if (!fs.existsSync(savePath)) {
     fs.mkdirSync(savePath, { recursive: true });
+  } else {
+    // 跳过已有文章
+    if (downloadOption.skinExist && downloadOption.skinExist == 1) {
+      outputLog(`【${saveDirName}】已存在，跳过此文章`, true);
+      return;
+    }
   }
-  const tmpPath = path.join(<string>store.get('tmpPath'), md5(url));
+  const tmpPath = path.join(downloadOption.tmpPath || '', md5(url));
   if (!fs.existsSync(tmpPath)) {
     fs.mkdirSync(tmpPath, { recursive: true });
   }
@@ -178,7 +191,7 @@ async function dlOne(url: string, html: string) {
   // 判断是否需要下载图片
   let content;
   let imgCount = 0;
-  if (1 == store.get('dlImg')) {
+  if (1 == downloadOption.dlImg) {
     await downloadImgToHtml(article.content, savePath, tmpPath).then((obj) => {
       content = obj.html;
       imgCount = obj.imgCount;
@@ -186,18 +199,21 @@ async function dlOne(url: string, html: string) {
   } else {
     content = article.content;
   }
-  // 插入标题
   const $ = cheerio.load(content);
-  $('#readability-page-1').prepend(`<h1>${article.title}</h1>`);
+  const readabilityPage = $('#readability-page-1');
+  // 插入原文链接
+  readabilityPage.prepend(`<div>原文地址：<a href='${url}' target='_blank'>${article.title}</a></div>`);
+  // 插入标题
+  readabilityPage.prepend(`<h1>${article.title}</h1>`);
 
   // 判断是否保存markdown
-  if (1 == store.get('dlMarkdown')) {
-    outputLog(`【${article.title}】保存Markdown完成`, true);
+  if (1 == downloadOption.dlMarkdown) {
     const markdownStr = turndownService.turndown($.html());
     fs.writeFile(path.join(savePath, 'index.md'), markdownStr, () => {});
+    outputLog(`【${article.title}】保存Markdown完成`, true);
   }
   // 判断是否保存html
-  if (1 == store.get('dlHtml')) {
+  if (1 == downloadOption.dlHtml) {
     // 添加样式美化
     $('head').append(service.getArticleCss());
     fs.writeFile(path.join(savePath, 'index.html'), $.html(), () => {});
@@ -257,6 +273,7 @@ async function downloadImgToHtml(html: string, savePath: string, tmpPath: string
   }
   return { html: $.html(), imgCount: imgCount };
 }
+
 /*
  * 开启公号文章监测
  */
@@ -297,6 +314,7 @@ function createProxy(): AnyProxy.ProxyServer {
             const $ = cheerio.load(responseDetail.response.body);
             const title = $('h1').text().trim();
             outputLog(`已监测到【${title}】，请确认是否批量下载该文章所属公号`, true);
+            MAIN_WINDOW.focus();
             // 页面弹框确认
             MAIN_WINDOW.webContents.send('confirm-title', title);
 
@@ -319,6 +337,7 @@ function createProxy(): AnyProxy.ProxyServer {
   proxyServer.start();
   return proxyServer;
 }
+
 /*
  * 批量下载
  */
@@ -331,9 +350,10 @@ async function batchDownload() {
 
   // 下载文章详情
   const promiseArr: Promise<void>[] = [];
+  const downloadOption = service.loadDownloadOption();
   for (const article of articleArr) {
     outputLog(`开始下载文章【${article.title}】`, true);
-    promiseArr.push(axiosDlOne(article.contentUrl));
+    promiseArr.push(axiosDlOne(article, downloadOption));
   }
   // 栅栏，等待所有文章下载完成
   for (const articlePromise of promiseArr) {
@@ -344,6 +364,7 @@ async function batchDownload() {
   outputLog('<hr/>', true, true);
   MAIN_WINDOW.webContents.send('download-fnish');
 }
+
 /*
  * 获取文章列表
  */
@@ -376,26 +397,17 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     // 如果大于结束时间，则不放入
     if (dateTime > endDate) continue;
 
-    objToArticle(appMsgExtInfo, dateTime, articleArr);
+    service.objToArticle(appMsgExtInfo, dateTime, articleArr);
 
     if (appMsgExtInfo['is_multi'] == 1) {
       for (const multiAppMsgItem of appMsgExtInfo['multi_app_msg_item_list']) {
-        objToArticle(multiAppMsgItem, dateTime, articleArr);
+        service.objToArticle(multiAppMsgItem, dateTime, articleArr);
       }
     }
   }
   if (dataObj['can_msg_continue'] == 1) {
+    outputLog(`正在获取文章列表，目前数量：${articleArr.length}`, true);
     await downList(dataObj['next_offset'], articleArr, startDate, endDate);
-  }
-}
-/*
- * 将json转成ArticleInfo
- */
-function objToArticle(jsonObj, dateTime: Date, articleArr: ArticleInfo[]) {
-  const title = jsonObj['title'];
-  const contentUrl = jsonObj['content_url'];
-  if (contentUrl) {
-    articleArr.push({ title: title, datetime: dateTime, contentUrl: contentUrl });
   }
 }
 
@@ -405,6 +417,6 @@ function objToArticle(jsonObj, dateTime: Date, articleArr: ArticleInfo[]) {
  * append：是否追加
  * flgHtml：消息是否是html
  */
-function outputLog(msg: string, append = false, flgHtml = false) {
+async function outputLog(msg: string, append = false, flgHtml = false) {
   MAIN_WINDOW.webContents.send('output-log', msg, append, flgHtml);
 }
