@@ -16,6 +16,9 @@ const store = new Store();
 const service = new Service();
 // html转markdown的TurndownService
 const turndownService = service.createTurndownService();
+// 下载数量限制
+// 获取文章列表时，数量查过此限制不再继续获取列表，而是采集详情页后再继续获取列表
+const DOWNLOAD_LIMIT = 10;
 
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
@@ -345,16 +348,15 @@ function createProxy(): AnyProxy.ProxyServer {
  */
 async function batchDownload() {
   const { startDate, endDate } = service.getTimeScpoe();
+  const downloadOption = service.loadDownloadOption();
   const articleArr: ArticleInfo[] = [];
   // 获取文章列表
-  await downList(0, articleArr, startDate, endDate);
-  outputLog(`获取文章列表成功，共${articleArr.length}篇文章`, true);
+  const articleCount: number[] = [0];
+  await downList(0, articleArr, startDate, endDate, downloadOption, articleCount);
 
-  // 下载文章详情
+  // downList中没下载完的，在这处理
   const promiseArr: Promise<void>[] = [];
-  const downloadOption = service.loadDownloadOption();
   for (const article of articleArr) {
-    outputLog(`开始下载文章【${article.title}】`, true);
     promiseArr.push(axiosDlOne(article, downloadOption));
   }
   // 栅栏，等待所有文章下载完成
@@ -362,15 +364,21 @@ async function batchDownload() {
     await articlePromise;
   }
 
-  outputLog('批量下载完成', true);
+  outputLog(`批量下载完成，共${articleCount[0]}篇文章`, true);
   outputLog('<hr/>', true, true);
   MAIN_WINDOW.webContents.send('download-fnish');
 }
 
 /*
  * 获取文章列表
+ * nextOffset: 微信获取文章列表所需参数
+ * articleArr：文章信息
+ * startDate：过滤开始时间
+ * endDate：过滤结束时间
+ * downloadOption：下载配置
+ * articleCount：文章数量
  */
-async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date) {
+async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, downloadOption: DownloadOption, articleCount: number[]) {
   const url = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
   const response = await axios.get(url, {
     params: {
@@ -384,7 +392,14 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     outputLog(`获取文章列表失败，状态码：${response.status}`, true);
     return;
   }
+  const oldArticleLengh = articleArr.length;
   const dataObj = response.data;
+  const errmsg = dataObj['errmsg'];
+  if (errmsg) {
+    console.log('下载列表url', `${url}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&offset=${nextOffset}`);
+    outputLog(`获取文章列表失败，错误信息：${errmsg}`, true);
+    return;
+  }
   const generalMsgList = JSON.parse(dataObj['general_msg_list']);
 
   for (const generalMsg of generalMsgList['list']) {
@@ -407,9 +422,25 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
       }
     }
   }
+  articleCount[0] = articleCount[0] + articleArr.length - oldArticleLengh;
+  outputLog(`正在获取文章列表，目前数量：${articleCount[0]}`, true);
+  // 文章数量超过限制，则开始下载详情页
+  while (articleArr.length >= DOWNLOAD_LIMIT) {
+    const promiseArr: Promise<void>[] = [];
+    for (let i = 0; i < DOWNLOAD_LIMIT; i++) {
+      const article = articleArr.shift();
+      if (article) {
+        promiseArr.push(axiosDlOne(article, downloadOption));
+      }
+    }
+    // 栅栏，等待所有文章下载完成
+    for (const articlePromise of promiseArr) {
+      await articlePromise;
+    }
+  }
+
   if (dataObj['can_msg_continue'] == 1) {
-    outputLog(`正在获取文章列表，目前数量：${articleArr.length}`, true);
-    await downList(dataObj['next_offset'], articleArr, startDate, endDate);
+    await downList(dataObj['next_offset'], articleArr, startDate, endDate, downloadOption, articleCount);
   }
 }
 

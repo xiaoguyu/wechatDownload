@@ -1,7 +1,10 @@
 import { OpenDialogOptions } from 'electron';
 
+let HTML_ElE;
 export function init(): void {
   window.addEventListener('DOMContentLoaded', () => {
+    HTML_ElE = document.querySelector('html');
+
     // 添加下载按钮事件
     addDlOneEvent();
     // 添加批量下载按钮事件
@@ -62,7 +65,7 @@ async function addDlBatchEvent() {
   if (dlBatchEle) {
     dlBatchEle.onclick = () => {
       window.electronApi.monitorArticle();
-      dlBatchEle.style.display = 'none';
+      // dlBatchEle.style.display = 'none';
     };
   }
 }
@@ -256,6 +259,10 @@ async function outputLog(msg: string, flgAppend = false, flgHtml = false) {
         logDivEle.innerHTML = '<p>' + msg + '</p>';
       }
     }
+  }
+  if (HTML_ElE && HTML_ElE.scrollHeight > HTML_ElE.clientHeight) {
+    //设置滚动条到最底部
+    HTML_ElE.scrollTop = HTML_ElE.scrollHeight;
   }
 }
 
