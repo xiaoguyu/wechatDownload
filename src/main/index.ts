@@ -315,11 +315,12 @@ function createProxy(): AnyProxy.ProxyServer {
           const key = HttpUtil.getQueryVariable(requestDetail.url, 'key');
           if (uin && biz && key) {
             GZH_INFO = new GzhInfo(biz, key, uin);
-
             const $ = cheerio.load(responseDetail.response.body);
             const title = $('h1').text().trim();
             outputLog(`已监测到【${title}】，请确认是否批量下载该文章所属公号`, true);
-            MAIN_WINDOW.focus();
+            if (!MAIN_WINDOW.focusable) {
+              MAIN_WINDOW.focus();
+            }
             // 页面弹框确认
             MAIN_WINDOW.webContents.send('confirm-title', title);
 
@@ -395,7 +396,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
   const oldArticleLengh = articleArr.length;
   const dataObj = response.data;
   const errmsg = dataObj['errmsg'];
-  if (errmsg) {
+  if ('ok' != errmsg) {
     console.log('下载列表url', `${url}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&offset=${nextOffset}`);
     outputLog(`获取文章列表失败，错误信息：${errmsg}`, true);
     return;
@@ -409,6 +410,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     const dateTime = new Date(commMsgInfo['datetime'] * 1000);
     // 判断，如果小于开始时间，直接退出
     if (dateTime < startDate) {
+      articleCount[0] = articleCount[0] + articleArr.length - oldArticleLengh;
       return;
     }
     // 如果大于结束时间，则不放入

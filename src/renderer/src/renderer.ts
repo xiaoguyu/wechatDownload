@@ -65,7 +65,7 @@ async function addDlBatchEvent() {
   if (dlBatchEle) {
     dlBatchEle.onclick = () => {
       window.electronApi.monitorArticle();
-      // dlBatchEle.style.display = 'none';
+      dlBatchEle.style.display = 'none';
     };
   }
 }
