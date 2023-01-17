@@ -153,6 +153,30 @@ body {
   margin-top: 5px;
 }
 
+.setting-contain .middle .right .mysql-option {
+  margin-top: 5px;
+  border: 1px solid #aaaaaa59;
+  padding: 8px;
+  display: none;
+}
+
+.setting-contain .middle .right .mysql-option div {
+  display: flex;
+  margin-top: 5px;
+}
+
+.setting-contain .middle .right .mysql-option div div {
+  width: 55px;
+}
+
+.setting-contain .middle .right .mysql-option div input {
+  flex: 1;
+}
+
+.setting-contain .middle .right .mysql-option button {
+  margin: 0 15px;
+}
+
 .setting-contain .foot {
   margin-top: 15px;
 }

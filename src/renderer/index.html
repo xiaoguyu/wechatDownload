@@ -43,6 +43,7 @@
           <div class="left">
             <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
             <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
+            <div class="item"><input type="checkbox" name="dlMysql" />保存至Mysql</div>
             <div title="不勾选则使用网络图片" class="item"><input type="checkbox" name="dlImg" />下载图片到本地</div>
             <div title="不勾选则覆盖现有文章" class="item"><input type="checkbox" name="skinExist" />跳过现有文章</div>
             <div class="item"><input type="checkbox" name="sourceUrl" />添加原文链接</div>
@@ -52,6 +53,30 @@
               下载范围<br />
               <input type="radio" name="dlScpoe" value="all" />全部 <input type="radio" name="dlScpoe" value="one" />今日 <input type="radio" name="dlScpoe" value="seven" />7天内 <input type="radio" name="dlScpoe" value="month" />一个月内<br />
               <input type="radio" name="dlScpoe" value="diy" />自定义 <input type="date" name="startDate" /> ~ <input type="date" name="endDate" />
+            </div>
+            <div class="item mysql-option">
+              Mysql配置<button id="test-connect">测试连接</button>
+              <br />
+              <div>
+                <div>主机：</div>
+                <input name="mysqlHost" />
+              </div>
+              <div>
+                <div>端口：</div>
+                <input name="mysqlPort" />
+              </div>
+              <div>
+                <div>用户名：</div>
+                <input name="mysqlUser" />
+              </div>
+              <div>
+                <div>密码：</div>
+                <input type="password" name="mysqlPassword" />
+              </div>
+              <div>
+                <div>数据库：</div>
+                <input name="mysqlDatabase" />
+              </div>
             </div>
           </div>
         </div>

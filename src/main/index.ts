@@ -3,6 +3,7 @@ import { electronApp, is } from '@electron-toolkit/utils';
 import Store from 'electron-store';
 import axios from 'axios';
 import md5 from 'blueimp-md5';
+import * as mysql from 'mysql';
 import * as AnyProxy from 'anyproxy';
 import * as path from 'path';
 import * as Readability from '@mozilla/readability';
@@ -19,6 +20,11 @@ const turndownService = service.createTurndownService();
 // 下载数量限制
 // 获取文章列表时，数量查过此限制不再继续获取列表，而是采集详情页后再继续获取列表
 const DOWNLOAD_LIMIT = 10;
+// 获取文章列表的url
+const LIST_URL = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
+// 插入数据库的sql
+const TABLE_NAME = store.get('tableName') || 'wx_article';
+const MOD_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?;`;
 
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
@@ -27,6 +33,8 @@ let MAIN_WINDOW: BrowserWindow;
 let GZH_INFO: GzhInfo;
 // 用于定时关闭代理的对象
 let TIMER: NodeJS.Timeout;
+// 数据库连接
+let CONNECTION: mysql.Connection;
 
 // 配置的保存文件的路径
 console.log('store.path', store.path);
@@ -115,6 +123,8 @@ app.whenReady().then(() => {
       MAIN_WINDOW.webContents.send('download-fnish');
     }
   });
+  // 测试数据库连接
+  ipcMain.on('test-connect', async () => createMyqlConnection(true));
 
   createWindow();
 
@@ -129,6 +139,10 @@ app.on('window-all-closed', () => {
     // 关闭代理
     AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
   }
+  // 数据库连接
+  if (CONNECTION) {
+    CONNECTION.end();
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -140,6 +154,8 @@ app.on('window-all-closed', () => {
 async function downloadOne(url: string) {
   outputLog(`正在下载文章，url：${url}`);
 
+  // 初始化数据库连接
+  createMyqlConnection();
   const articleInfo = new ArticleInfo(null, null, url);
   const downloadOption = service.loadDownloadOption();
   await axiosDlOne(articleInfo, downloadOption);
@@ -173,6 +189,9 @@ async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
     outputLog('提取正文失败', true);
     return;
   }
+  if (!articleInfo.title) articleInfo.title = article.title;
+  if (!articleInfo.author) articleInfo.author = article.byline;
+
   // 创建保存文件夹和缓存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
   const saveDirName = StrUtil.strToDirName(article.title);
@@ -222,6 +241,17 @@ async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
     fs.writeFile(path.join(savePath, 'index.html'), $.html(), () => {});
     outputLog(`【${article.title}】保存HTML完成`, true);
   }
+  // 判断是否保存到数据库
+  if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated') {
+    const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
+    CONNECTION.query(MOD_SQL, modSqlParams, function (err, _result) {
+      if (err) {
+        console.log('mysql插入失败', err.message);
+      } else {
+        console.log('mysql更新成功');
+      }
+    });
+  }
   outputLog(`【${article.title}】下载完成，共${imgCount}张图，url：${url}`, true);
 }
 
@@ -233,16 +263,16 @@ async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
  * tmpPath： 缓存路径(已区分文章)，例如：D://tmpPathPath//6588aec6b658b2c941f6d51d0b1691b9
  */
 async function downloadImgToHtml(html: string, savePath: string, tmpPath: string): Promise<{ html: string; imgCount: number }> {
-  // 创建保存图片的文件夹
-  const imgPath = path.join(savePath, 'img');
-  if (!fs.existsSync(imgPath)) {
-    fs.mkdirSync(imgPath, { recursive: true });
-  }
-
   const $ = cheerio.load(html);
   const imgArr = $('img');
   const awaitArr: Promise<void>[] = [];
   let imgCount = 0;
+  // 创建保存图片的文件夹
+  const imgPath = path.join(savePath, 'img');
+  if (imgArr.length > 0 && !fs.existsSync(imgPath)) {
+    fs.mkdirSync(imgPath, { recursive: true });
+  }
+
   imgArr.each(function (_i, elem) {
     const $ele = $(elem);
     // 文件后缀
@@ -351,6 +381,9 @@ async function batchDownload() {
   const { startDate, endDate } = service.getTimeScpoe();
   const downloadOption = service.loadDownloadOption();
   const articleArr: ArticleInfo[] = [];
+  const exeStartTime = performance.now();
+  // 提前初始化数据库连接
+  await createMyqlConnection();
   // 获取文章列表
   const articleCount: number[] = [0];
   await downList(0, articleArr, startDate, endDate, downloadOption, articleCount);
@@ -365,7 +398,9 @@ async function batchDownload() {
     await articlePromise;
   }
 
-  outputLog(`批量下载完成，共${articleCount[0]}篇文章`, true);
+  const exeEndTime = performance.now();
+  const exeTime = (exeEndTime - exeStartTime) / 1000;
+  outputLog(`批量下载完成，共${articleCount[0]}篇文章，耗时${exeTime.toFixed(2)}秒`, true);
   outputLog('<hr/>', true, true);
   MAIN_WINDOW.webContents.send('download-fnish');
 }
@@ -380,8 +415,7 @@ async function batchDownload() {
  * articleCount：文章数量
  */
 async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, downloadOption: DownloadOption, articleCount: number[]) {
-  const url = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
-  const response = await axios.get(url, {
+  const response = await axios.get(LIST_URL, {
     params: {
       __biz: GZH_INFO.biz,
       key: GZH_INFO.key,
@@ -397,7 +431,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
   const dataObj = response.data;
   const errmsg = dataObj['errmsg'];
   if ('ok' != errmsg) {
-    console.log('下载列表url', `${url}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&offset=${nextOffset}`);
+    console.log('下载列表url', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&offset=${nextOffset}`);
     outputLog(`获取文章列表失败，错误信息：${errmsg}`, true);
     return;
   }
@@ -444,6 +478,47 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
   if (dataObj['can_msg_continue'] == 1) {
     await downList(dataObj['next_offset'], articleArr, startDate, endDate, downloadOption, articleCount);
   }
+}
+/*
+ * 创建mysql数据库连接
+ */
+async function createMyqlConnection(flgTest = false) {
+  if (1 != store.get('dlMysql')) return;
+  if (CONNECTION) {
+    CONNECTION.end();
+  }
+
+  CONNECTION = mysql.createConnection({
+    host: <string>store.get('mysqlHost'),
+    port: <number>store.get('mysqlPort'),
+    user: <string>store.get('mysqlUser'),
+    password: <string>store.get('mysqlPassword'),
+    database: <string>store.get('mysqlDatabase'),
+    charset: 'utf8mb4'
+  });
+  // 这里是想阻塞等待连接成功
+  return new Promise((resolve, _reject) => {
+    CONNECTION.connect(() => {
+      const sql = 'show tables';
+      CONNECTION.query(sql, (err) => {
+        if (err) {
+          console.log('mysql连接失败', err);
+          if (flgTest) {
+            MAIN_WINDOW.webContents.send('alert', '连接失败，请检查参数');
+          } else {
+            outputLog('数据库连接失败，请检查参数', true);
+          }
+        } else {
+          if (flgTest) {
+            MAIN_WINDOW.webContents.send('alert', '连接成功');
+          } else {
+            outputLog('数据库连接成功', true);
+          }
+        }
+        resolve(CONNECTION);
+      });
+    });
+  });
 }
 
 /*

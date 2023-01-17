@@ -21,6 +21,8 @@ export function init(): void {
     addChoseSavePathEvent();
     // 选择缓存路径
     addChoseTmpPathEvent();
+    // 添加测试mysql连接事件
+    addTestConnectEvent();
     // main -> render的事件
     addCallbackEvent();
   });
@@ -94,6 +96,14 @@ async function fillInput(selectPath: string) {
       } else {
         inputEle.value = defaultVal;
       }
+
+      // mysql配置框处理
+      if (inputEle.name == 'dlMysql' && defaultVal == 1) {
+        const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
+        if (mysqlOptDiv) {
+          mysqlOptDiv.style.display = 'block';
+        }
+      }
     }
   });
 }
@@ -148,6 +158,13 @@ function addInputEvent(selectPath: string) {
           storeSet(inputEle.name, 1);
         } else {
           storeSet(inputEle.name, 0);
+        }
+        // mysql的配置框处理
+        if (inputEle.name == 'dlMysql') {
+          const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
+          if (mysqlOptDiv) {
+            inputEle.checked ? (mysqlOptDiv.style.display = 'block') : (mysqlOptDiv.style.display = 'none');
+          }
         }
       } else {
         storeSet(inputEle.name, inputEle.value);
@@ -224,6 +241,10 @@ async function addCallbackEvent() {
       window.electronApi.confirmDownload(false);
     }
   });
+  // alert
+  window.electronApi.alert(async (_event, msg) => {
+    window.alert(msg);
+  });
   // 下载完成
   window.electronApi.downloadFnish(async () => {
     const dlBatchEle = document.getElementById('dlBatch');
@@ -231,6 +252,17 @@ async function addCallbackEvent() {
       dlBatchEle.style.display = 'inline-block';
     }
   });
+}
+/*
+ * 添加测试mysql连接事件
+ */
+async function addTestConnectEvent() {
+  const testConnectEle = document.getElementById('test-connect');
+  if (testConnectEle) {
+    testConnectEle.onclick = () => {
+      window.electronApi.testConnect();
+    };
+  }
 }
 /*
  * 输出日志到主页面

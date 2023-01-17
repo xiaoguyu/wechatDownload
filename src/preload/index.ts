@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('electronApi', {
   monitorArticle: () => ipcRenderer.send('monitor-article'),
   // 确认是否批量下载
   confirmDownload: (flgDownload: boolean) => ipcRenderer.send('confirm-download', flgDownload),
+  // 测试mysql连接
+  testConnect: () => ipcRenderer.send('test-connect'),
   // electron-store的api
   store: {
     get(key) {
@@ -49,6 +51,7 @@ contextBridge.exposeInMainWorld('electronApi', {
   outputLog: (callback) => ipcRenderer.on('output-log', callback),
   // 确认批量下载的公号文章的标题
   confirmTitle: (callback) => ipcRenderer.on('confirm-title', callback),
+  alert: (callback) => ipcRenderer.on('alert', callback),
   // 下载完成
   downloadFnish: (callback) => ipcRenderer.on('download-fnish', callback)
 });

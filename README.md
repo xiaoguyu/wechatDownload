@@ -22,7 +22,7 @@ Electron + Typescript
 
 ![image-20230112181356841](https://img.javaedit.com/images/2023/01/12/fe4b589cdf114a09f632cf8fa5e55f0c.png)
 
-![image-20230112181431274](https://img.javaedit.com/images/2023/01/12/d35c93445bbb23e67877019763dbcb65.png)
+![image-20230117115453694](https://img.javaedit.com/images/2023/01/17/7e2fbcb74217368ecb5fe347b173a0d0.png)
 
 - 单篇文章下载
 
@@ -35,13 +35,20 @@ Electron + Typescript
   3. 在PC版微信中随意打开一篇需要批量下载的公号的文章（点击批量下载按钮前就打开的文章不算，别偷懒）
   4. wechatDownload 弹框确认监听到的文章是否正确，选择是则直接开始批量下载
 
+- 保存至MySql
+
+  需要执行 /doc/mysql.sql 文件中的SQL语句创建表
+
+  
+
 ### 功能
 
 设置中心有啥就支持啥
 
 待添加：
 
-- [ ] 下载保存至数据库
+- [x] 下载保存至数据库
+- [ ] 支持数据来源（从微信接口获取 or 数据库获取）
 
 ## 源码运行&编译
 

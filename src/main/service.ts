@@ -23,10 +23,17 @@ class GzhInfo {
 }
 // 公号文章信息类
 class ArticleInfo {
+  // 标题
   public title?: string;
+  // 事件
   public datetime?: Date;
+  // 详情url
   public contentUrl: string;
+  // html源码
   public html?: string;
+  // 作者
+  public author?: string;
+  public copyrightStat?: number;
 
   constructor(title, datetime, contentUrl) {
     this.title = title;
@@ -42,6 +49,8 @@ class DownloadOption {
   public dlHtml?: number;
   // 下载为markdown
   public dlMarkdown?: number;
+  // 保存至mysql
+  public dlMysql?: number;
   // 下载图片到本地
   public dlImg?: number;
   // 跳过现有文章
@@ -60,6 +69,14 @@ class DownloadOption {
   public tmpPath?: string;
   // CA证书路径
   public caPath?: string;
+  // mysql配置-主机
+  public mysqlHost?: string;
+  // mysql配置-端口
+  public mysqlPort?: number;
+  // mysql配置-用户名
+  public mysqlUser?: string;
+  // mysql配置-密码
+  public mysqlPassword?: string;
 }
 /*
  * 业务方法类
@@ -125,7 +142,12 @@ class Service {
       // 在安装目录下创建文章的保存路径
       savePath: path.join(path.dirname(app.getPath('exe')), 'savePath'),
       // CA证书路径
-      caPath: _AnyProxy.utils.certMgr.getRootDirPath()
+      caPath: _AnyProxy.utils.certMgr.getRootDirPath(),
+      // mysql配置-端口
+      mysqlHost: 'localhost',
+      mysqlPort: 3306,
+      mysqlUser: 'root',
+      mysqlPassword: 'root'
     };
 
     for (const i in default_setting) {
@@ -322,11 +344,14 @@ class Service {
   /*
    * 将json转成ArticleInfo
    */
-  public objToArticle(jsonObj, dateTime: Date, articleArr: ArticleInfo[]) {
-    const title = jsonObj['title'];
-    const contentUrl = jsonObj['content_url'];
+  public objToArticle(appMsgExtInfo, dateTime: Date, articleArr: ArticleInfo[]) {
+    const title = appMsgExtInfo['title'];
+    const contentUrl = appMsgExtInfo['content_url'];
     if (contentUrl) {
-      articleArr.push({ title: title, datetime: dateTime, contentUrl: contentUrl });
+      const article: ArticleInfo = { title: title, datetime: dateTime, contentUrl: contentUrl };
+      article.author = appMsgExtInfo['author'];
+      article.copyrightStat = appMsgExtInfo['copyright_stat'];
+      articleArr.push(article);
     }
   }
 }
