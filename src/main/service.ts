@@ -45,6 +45,8 @@ class ArticleInfo {
 class DownloadOption {
   // 首次运行
   public firstRun?: boolean;
+  // 下载来源
+  public dlSource?: string;
   // 下载为html
   public dlHtml?: number;
   // 下载为markdown
@@ -129,6 +131,8 @@ class Service {
   public setDefaultSetting() {
     const default_setting: DownloadOption = {
       firstRun: false,
+      // 下载来源
+      dlSource: 'web',
       // 下载为markdown
       dlMarkdown: 1,
       // 跳过现有文章
@@ -353,6 +357,15 @@ class Service {
       article.copyrightStat = appMsgExtInfo['copyright_stat'];
       articleArr.push(article);
     }
+  }
+  /*
+   * 将数据库的json对象转为ArticleInfo
+   */
+  public dbObjToArticle(dbObj): ArticleInfo {
+    const article = new ArticleInfo(dbObj['title'], dbObj['create_time'], dbObj['content_url']);
+    article.author = dbObj['author'];
+    article.html = dbObj['content'];
+    return article;
   }
 }
 

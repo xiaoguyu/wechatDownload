@@ -24,7 +24,8 @@ const DOWNLOAD_LIMIT = 10;
 const LIST_URL = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
 // 插入数据库的sql
 const TABLE_NAME = store.get('tableName') || 'wx_article';
-const MOD_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?;`;
+const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
+const SELECT_SQL = `SELECT title, content, author, content_url, create_time FROM ${TABLE_NAME} WHERE create_time >= ? AND create_time <= ?`;
 
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
@@ -74,7 +75,7 @@ function createWindow(): void {
   }
 
   // 打开f12调试
-  // mainWindow.webContents.openDevTools();
+  // MAIN_WINDOW.webContents.openDevTools();
 }
 
 app.whenReady().then(() => {
@@ -117,7 +118,7 @@ app.whenReady().then(() => {
   // 确认是否批量下载
   ipcMain.on('confirm-download', (_event, flgDownload: boolean) => {
     if (flgDownload) {
-      batchDownload();
+      batchDownloadFromWeb();
     } else {
       outputLog(`已取消下载！`, true);
       MAIN_WINDOW.webContents.send('download-fnish');
@@ -176,7 +177,7 @@ async function axiosDlOne(articleInfo: ArticleInfo, downloadOption: DownloadOpti
 /*
  * 下载单个页面
  */
-async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
+async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption, saveToDb = true) {
   // 预处理微信公号文章html
   if (!articleInfo.html) return;
   const url = articleInfo.contentUrl;
@@ -242,9 +243,9 @@ async function dlOne(articleInfo: ArticleInfo, downloadOption: DownloadOption) {
     outputLog(`【${article.title}】保存HTML完成`, true);
   }
   // 判断是否保存到数据库
-  if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated') {
+  if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated' && saveToDb) {
     const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
-    CONNECTION.query(MOD_SQL, modSqlParams, function (err, _result) {
+    CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
       if (err) {
         console.log('mysql插入失败', err.message);
       } else {
@@ -311,22 +312,31 @@ async function downloadImgToHtml(html: string, savePath: string, tmpPath: string
  * 开启公号文章监测
  */
 async function monitorArticle() {
-  if (!PROXY_SERVER) {
-    PROXY_SERVER = createProxy();
-  }
-  // 开启代理
-  AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001');
-  AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001', 'https');
-  outputLog(`代理开启成功，准备批量下载...`);
-  outputLog(`请在微信打开任意一篇需要批量下载的公号的文章`, true);
-  outputLog(`别偷懒，已经打开的不算...`, true);
+  if ('db' == store.get('dlSource')) {
+    // 下载来源是数据库
+    outputLog('下载来源为数据库');
+    outputLog('正在初始化数据库连接...', true);
+    batchDownloadFromDb();
+  } else {
+    // 下载来源是网络
+    if (!PROXY_SERVER) {
+      PROXY_SERVER = createProxy();
+    }
+    // 开启代理
+    AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001');
+    AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001', 'https');
+    outputLog('下载来源为网络');
+    outputLog('代理开启成功，准备批量下载...', true);
+    outputLog('请在微信打开任意一篇需要批量下载的公号的文章', true);
+    outputLog('别偷懒，已经打开的不算...', true);
 
-  // 10秒之后自动关闭代理
-  TIMER = setTimeout(() => {
-    outputLog(`批量下载超时，未监测到公号文章！`, true);
-    AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
-    MAIN_WINDOW.webContents.send('download-fnish');
-  }, 10000);
+    // 10秒之后自动关闭代理
+    TIMER = setTimeout(() => {
+      outputLog('批量下载超时，未监测到公号文章！', true);
+      AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
+      MAIN_WINDOW.webContents.send('download-fnish');
+    }, 10000);
+  }
 }
 /*
  * 创建代理
@@ -375,9 +385,58 @@ function createProxy(): AnyProxy.ProxyServer {
 }
 
 /*
- * 批量下载
+ * 批量下载（来源是数据库）
  */
-async function batchDownload() {
+async function batchDownloadFromDb() {
+  const exeStartTime = performance.now();
+  // 提前初始化数据库连接
+  await createMyqlConnection();
+  if (CONNECTION.state != 'authenticated') {
+    outputLog('数据库初始化失败', true);
+    MAIN_WINDOW.webContents.send('download-fnish');
+    return;
+  }
+
+  const { startDate, endDate } = service.getTimeScpoe();
+  const modSqlParams = [startDate, endDate];
+  CONNECTION.query(SELECT_SQL, modSqlParams, async function (err, result) {
+    if (err) {
+      console.log('获取数据库数据失败', err.message);
+      outputLog('获取数据库数据失败', true);
+    } else {
+      let articleCount = 0;
+      const promiseArr: Promise<void>[] = [];
+      const downloadOption = service.loadDownloadOption();
+      for (const dbObj of result) {
+        articleCount++;
+        const articleInfo: ArticleInfo = service.dbObjToArticle(dbObj);
+        promiseArr.push(dlOne(articleInfo, downloadOption, false));
+        // 栅栏，防止一次性下载太多
+        if (promiseArr.length > DOWNLOAD_LIMIT) {
+          for (let i = 0; i < DOWNLOAD_LIMIT; i++) {
+            const p = promiseArr.shift();
+            await p;
+          }
+        }
+      }
+      // 栅栏，等待所有文章下载完成
+      for (const articlePromise of promiseArr) {
+        await articlePromise;
+      }
+
+      const exeEndTime = performance.now();
+      const exeTime = (exeEndTime - exeStartTime) / 1000;
+      outputLog(`批量下载完成，共${articleCount}篇文章，耗时${exeTime.toFixed(2)}秒`, true);
+      outputLog('<hr/>', true, true);
+    }
+    MAIN_WINDOW.webContents.send('download-fnish');
+  });
+}
+
+/*
+ * 批量下载(来源是网络)
+ */
+async function batchDownloadFromWeb() {
   const { startDate, endDate } = service.getTimeScpoe();
   const downloadOption = service.loadDownloadOption();
   const articleArr: ArticleInfo[] = [];

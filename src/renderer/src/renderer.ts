@@ -98,7 +98,7 @@ async function fillInput(selectPath: string) {
       }
 
       // mysql配置框处理
-      if (inputEle.name == 'dlMysql' && defaultVal == 1) {
+      if ((inputEle.name == 'dlMysql' && defaultVal == 1) || (inputEle.name == 'dlSource' && defaultVal == 'db')) {
         const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
         if (mysqlOptDiv) {
           mysqlOptDiv.style.display = 'block';
@@ -159,15 +159,37 @@ function addInputEvent(selectPath: string) {
         } else {
           storeSet(inputEle.name, 0);
         }
-        // mysql的配置框处理
-        if (inputEle.name == 'dlMysql') {
-          const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
-          if (mysqlOptDiv) {
-            inputEle.checked ? (mysqlOptDiv.style.display = 'block') : (mysqlOptDiv.style.display = 'none');
-          }
-        }
       } else {
         storeSet(inputEle.name, inputEle.value);
+      }
+      // mysql的配置框处理
+      if (inputEle.name == 'dlMysql') {
+        const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
+        if (mysqlOptDiv) {
+          if (inputEle.checked) {
+            mysqlOptDiv.style.display = 'block';
+          } else {
+            const dlSourceInput = document.querySelector<HTMLInputElement>('input[name=dlSource]:checked');
+            if (dlSourceInput && dlSourceInput.value === 'db') {
+              return;
+            }
+            mysqlOptDiv.style.display = 'none';
+          }
+        }
+      }
+      if (inputEle.name == 'dlSource') {
+        const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
+        if (mysqlOptDiv) {
+          if (inputEle.checked && inputEle.value === 'db') {
+            mysqlOptDiv.style.display = 'block';
+          } else {
+            const dlMysqlInput = document.querySelector<HTMLInputElement>('input[name=dlMysql]');
+            if (dlMysqlInput && dlMysqlInput.checked) {
+              return;
+            }
+            mysqlOptDiv.style.display = 'none';
+          }
+        }
       }
     };
   });
@@ -229,7 +251,7 @@ async function addCallbackEvent() {
     }
   });
   // 输出日志
-  window.electronApi.outputLog((_event, msg: string, flgAppend = false, flgHtml = false) => {
+  window.electronApi.outputLog(async (_event, msg: string, flgAppend = false, flgHtml = false) => {
     outputLog(msg, flgAppend, flgHtml);
   });
   // 确认选择的公号文章是否正确
@@ -270,8 +292,8 @@ async function addTestConnectEvent() {
  * append：是否追加
  * flgHtml：消息是否是html
  */
+const logDivEle = <HTMLElement>document.getElementById('log-div');
 async function outputLog(msg: string, flgAppend = false, flgHtml = false) {
-  const logDivEle = <HTMLElement>document.getElementById('log-div');
   if (logDivEle) {
     if (flgAppend) {
       let ele;

@@ -41,6 +41,10 @@
         <div class="top">首次运行需要安装证书(安装一次即可)，请手动完成此设置：<button id="open-licence">打开证书路径</button></div>
         <div class="middle">
           <div class="left">
+            <div class="div-border">
+              下载来源<br />
+              <input type="radio" name="dlSource" value="web" />网络 <input type="radio" name="dlSource" value="db" />数据库
+            </div>
             <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
             <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
             <div class="item"><input type="checkbox" name="dlMysql" />保存至Mysql</div>
@@ -49,12 +53,12 @@
             <div class="item"><input type="checkbox" name="sourceUrl" />添加原文链接</div>
           </div>
           <div class="right">
-            <div class="item dl-scpoe">
+            <div class="item div-border">
               下载范围<br />
               <input type="radio" name="dlScpoe" value="all" />全部 <input type="radio" name="dlScpoe" value="one" />今日 <input type="radio" name="dlScpoe" value="seven" />7天内 <input type="radio" name="dlScpoe" value="month" />一个月内<br />
               <input type="radio" name="dlScpoe" value="diy" />自定义 <input type="date" name="startDate" /> ~ <input type="date" name="endDate" />
             </div>
-            <div class="item mysql-option">
+            <div class="item mysql-option div-border">
               Mysql配置<button id="test-connect">测试连接</button>
               <br />
               <div>

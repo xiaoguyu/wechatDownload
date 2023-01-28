@@ -74,9 +74,9 @@ body {
   box-sizing: border-box;
 }
 
-.main-contain {
-  /* display: none; */
-}
+/* .main-contain {
+  display: none;
+} */
 
 .main-contain input {
   flex: 1;
@@ -132,8 +132,22 @@ body {
   margin-top: 15px;
 }
 
+.setting-contain .middle .div-border {
+  border: 1px solid #aaaaaa59;
+  padding: 8px;
+  margin-bottom: 5px;
+}
+
+.setting-contain .middle .div-border input {
+  margin-top: 5px;
+}
+
 .setting-contain .middle .left {
   width: 50%;
+}
+
+.setting-contain .middle .left .div-border {
+  margin-right: 8px;
 }
 
 .setting-contain .middle .left .item {
@@ -144,19 +158,7 @@ body {
   width: 50%;
 }
 
-.setting-contain .middle .right .dl-scpoe {
-  border: 1px solid #aaaaaa59;
-  padding: 8px;
-}
-
-.setting-contain .middle .right .dl-scpoe input {
-  margin-top: 5px;
-}
-
 .setting-contain .middle .right .mysql-option {
-  margin-top: 5px;
-  border: 1px solid #aaaaaa59;
-  padding: 8px;
   display: none;
 }
 
