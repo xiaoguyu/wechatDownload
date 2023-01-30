@@ -48,6 +48,7 @@ port.on('message', async () => {
     const articleInfo = new ArticleInfo(null, null, url);
     await axiosDlOne(articleInfo);
     resp(NwrEnum.ONE_FINISH, '');
+    finish();
   } else if (dlEvent == DlEventEnum.BATCH_WEB) {
     // 从微信接口批量下载
     GZH_INFO = workerData.data;
@@ -56,12 +57,6 @@ port.on('message', async () => {
     // 从数据库批量下载
     await batchDownloadFromDb();
   }
-  // 关闭数据库连接
-  if (CONNECTION) {
-    CONNECTION.end();
-  }
-  // 通知主线程关闭此线程
-  resp(NwrEnum.CLOSE, '');
 });
 
 port.on('close', () => {
@@ -137,29 +132,51 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 插入标题
   readabilityPage.prepend(`<h1>${article.title}</h1>`);
 
+  const proArr: Promise<void>[] = [];
   // 判断是否保存到数据库
   if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated' && saveToDb) {
-    const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
-    CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
-      if (err) {
-        console.log('mysql插入失败', err.message);
-      } else {
-        console.log('mysql更新成功');
-      }
-    });
+    proArr.push(
+      new Promise((resolve, _reject) => {
+        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
+        CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
+          if (err) {
+            console.log('mysql插入失败', err.message);
+          } else {
+            console.log('mysql更新成功');
+          }
+          resolve();
+        });
+      })
+    );
   }
   // 判断是否保存markdown
   if (1 == downloadOption.dlMarkdown) {
     const markdownStr = turndownService.turndown($.html());
-    fs.writeFileSync(path.join(savePath, 'index.md'), markdownStr);
-    resp(NwrEnum.SUCCESS, `【${article.title}】保存Markdown完成`);
+    proArr.push(
+      new Promise((resolve, _reject) => {
+        fs.writeFile(path.join(savePath, 'index.md'), markdownStr, () => {
+          resp(NwrEnum.SUCCESS, `【${article.title}】保存Markdown完成`);
+          resolve();
+        });
+      })
+    );
   }
   // 判断是否保存html
   if (1 == downloadOption.dlHtml) {
     // 添加样式美化
     $('head').append(service.getArticleCss());
-    fs.writeFileSync(path.join(savePath, 'index.html'), $.html());
-    resp(NwrEnum.SUCCESS, `【${article.title}】保存HTML完成`);
+    proArr.push(
+      new Promise((resolve, _reject) => {
+        fs.writeFile(path.join(savePath, 'index.html'), $.html(), () => {
+          resp(NwrEnum.SUCCESS, `【${article.title}】保存HTML完成`);
+          resolve();
+        });
+      })
+    );
+  }
+
+  for (const pro of proArr) {
+    await pro;
   }
   resp(NwrEnum.SUCCESS, `【${article.title}】下载完成，共${imgCount}张图，url：${url}`);
 }
@@ -255,6 +272,8 @@ async function batchDownloadFromDb() {
       const exeEndTime = performance.now();
       const exeTime = (exeEndTime - exeStartTime) / 1000;
       resp(NwrEnum.BATCH_FINISH, `批量下载完成，共${articleCount}篇文章，耗时${exeTime.toFixed(2)}秒`);
+
+      finish();
     }
   });
 }
@@ -284,6 +303,8 @@ async function batchDownloadFromWeb() {
   const exeTime = (exeEndTime - exeStartTime) / 1000;
 
   resp(NwrEnum.BATCH_FINISH, `批量下载完成，共${articleCount[0]}篇文章，耗时${exeTime.toFixed(2)}秒`);
+
+  finish();
 }
 
 /*
@@ -390,4 +411,15 @@ async function createMysqlConnection(): Promise<mysql.Connection> {
       });
     });
   });
+}
+/*
+ * 收尾方法
+ */
+function finish() {
+  // 关闭数据库连接
+  if (CONNECTION) {
+    CONNECTION.end();
+  }
+  // 通知主线程关闭此线程
+  resp(NwrEnum.CLOSE, '');
 }
