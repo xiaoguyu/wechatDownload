@@ -6,6 +6,5 @@ eSearch
 .VSCodeCounter/
 ocr/ppocr
 .DS_Store
-build
 preload_config
 dist

@@ -1,13 +1,8 @@
-import { app } from 'electron';
-import Store from 'electron-store';
 import { StrUtil } from './utils';
-import * as os from 'os';
 import * as path from 'path';
 import * as AnyProxy from 'anyproxy';
 
-const _AnyProxy = require('anyproxy');
 const cheerio = require('cheerio');
-const store = new Store();
 
 // 获取公号文章列表需要的信息
 class GzhInfo {
@@ -80,6 +75,31 @@ class DownloadOption {
   // mysql配置-密码
   public mysqlPassword?: string;
 }
+// nodeWorker交互使用的通用消息响应类
+class NodeWorkerResponse {
+  public code: number;
+  public message: string;
+  public data?: any;
+  constructor(code: number, message: string, data?) {
+    this.code = code;
+    this.message = message;
+    this.data = data;
+  }
+}
+// NodeWorkerResponse的code枚举类
+enum NwrEnum {
+  SUCCESS, // 成功，输出日志
+  FAIL, // 失败，输出日志并失败处理
+  ONE_FINISH, // 单个下载结束，输出日志并做结束处理
+  BATCH_FINISH, // 多个下载结束，输出日志并做结束处理
+  CLOSE // 结束线程
+}
+// 下载事件枚举类
+enum DlEventEnum {
+  ONE, // 下载单篇文章
+  BATCH_WEB, // 微信接口批量下载
+  BATCH_DB // 数据库批量下载
+}
 /*
  * 业务方法类
  */
@@ -87,16 +107,16 @@ class Service {
   /*
    * 获取开始时间和结束时间
    */
-  public getTimeScpoe(): { startDate: Date; endDate: Date } {
-    const scpoe = <string>store.get('dlScpoe');
+  public getTimeScpoe(downloadOption: DownloadOption): { startDate: Date; endDate: Date } {
+    const scpoe = downloadOption.dlScpoe;
     const now: Date = new Date();
     let startDate: Date = new Date();
     startDate.setTime(0);
     let endDate: Date = new Date();
     endDate.setHours(23, 59, 59, 0);
 
-    const startDateStr = <string>store.get('startDate');
-    const endDateStr = <string>store.get('endDate');
+    const startDateStr = downloadOption.startDate;
+    const endDateStr = downloadOption.endDate;
     switch (scpoe) {
       case 'one':
         startDate = now;
@@ -125,49 +145,6 @@ class Service {
     return { startDate: startDate, endDate: endDate };
   }
 
-  /*
-   * 第一次运行，默认设置
-   */
-  public setDefaultSetting() {
-    const default_setting: DownloadOption = {
-      firstRun: false,
-      // 下载来源
-      dlSource: 'web',
-      // 下载为markdown
-      dlMarkdown: 1,
-      // 跳过现有文章
-      skinExist: 1,
-      // 添加原文链接
-      sourceUrl: 1,
-      // 下载范围-全部
-      dlScpoe: 'all',
-      // 缓存目录
-      tmpPath: path.join(os.tmpdir(), 'wechatDownload'),
-      // 在安装目录下创建文章的保存路径
-      savePath: path.join(path.dirname(app.getPath('exe')), 'savePath'),
-      // CA证书路径
-      caPath: _AnyProxy.utils.certMgr.getRootDirPath(),
-      // mysql配置-端口
-      mysqlHost: 'localhost',
-      mysqlPort: 3306,
-      mysqlUser: 'root',
-      mysqlPassword: 'root'
-    };
-
-    for (const i in default_setting) {
-      store.set(i, default_setting[i]);
-    }
-  }
-  /*
-   * 获取配置
-   */
-  public loadDownloadOption(): DownloadOption {
-    const downloadOption = new DownloadOption();
-    for (const key in downloadOption) {
-      downloadOption[key] = store.get(key);
-    }
-    return downloadOption;
-  }
   /*
    * 预处理微信公号文章html
    */
@@ -369,4 +346,4 @@ class Service {
   }
 }
 
-export { GzhInfo, ArticleInfo, DownloadOption, Service };
+export { GzhInfo, ArticleInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };
