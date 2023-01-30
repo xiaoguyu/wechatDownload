@@ -38,7 +38,10 @@ async function addDlOneEvent() {
       const url = urlInputEle.value;
       const checkResult = checkURL(url);
       if (!checkResult) {
-        alert('请输入正确的url');
+        window.electronApi.showMessageBox({
+          type: 'warning',
+          message: '请输入正确的url'
+        });
         return;
       }
       // 下载详情页数据
@@ -253,19 +256,6 @@ async function addCallbackEvent() {
   // 输出日志
   window.electronApi.outputLog(async (_event, msg: string, flgAppend = false, flgHtml = false) => {
     outputLog(msg, flgAppend, flgHtml);
-  });
-  // 确认选择的公号文章是否正确
-  window.electronApi.confirmTitle(async (_event, title) => {
-    const infoMsg = `确认批量下载【${title}】所属公号的文章吗？`;
-    if (window.confirm(infoMsg)) {
-      window.electronApi.confirmDownload(true);
-    } else {
-      window.electronApi.confirmDownload(false);
-    }
-  });
-  // alert
-  window.electronApi.alert(async (_event, msg) => {
-    window.alert(msg);
   });
   // 下载完成
   window.electronApi.downloadFnish(async () => {

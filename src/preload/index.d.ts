@@ -1,4 +1,4 @@
-import { OpenDialogOptions } from 'electron';
+import { OpenDialogOptions, MessageBoxOptions } from 'electron';
 import { ElectronAPI } from '@electron-toolkit/preload';
 
 declare global {
@@ -15,10 +15,10 @@ declare global {
       downloadOne(url: string);
       // 开启公号文章监测
       monitorArticle();
-      // 确认是否批量下载
-      confirmDownload(flgDownload: boolean);
       // 测试mysql连接
       testConnect();
+      // 消息弹框
+      showMessageBox(options: MessageBoxOptions);
       // electron-store的api
       store: {
         get: (key: string) => any;
@@ -36,10 +36,6 @@ declare global {
        * flgHtml：消息是否是html
        */
       outputLog(callback: (event: IpcRendererEvent, msg: string, flgAppend = false, flgHtml = false) => void);
-      // 确认批量下载的公号文章的标题
-      confirmTitle(callback: (event: IpcRendererEvent, title: string) => void);
-      // 用于main调用render的alert方法
-      alert(callback: (event: IpcRendererEvent, msg: string) => void);
       // 下载完成后做的处理
       downloadFnish(callback: (event: IpcRendererEvent) => void);
     };

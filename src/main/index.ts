@@ -1,6 +1,6 @@
 /// <reference types="electron-vite/node" />
 
-import { app, dialog, shell, ipcMain, BrowserWindow, OpenDialogOptions } from 'electron';
+import { app, dialog, shell, ipcMain, BrowserWindow, OpenDialogOptions, MessageBoxOptions } from 'electron';
 import { electronApp, is } from '@electron-toolkit/utils';
 import Store from 'electron-store';
 import * as mysql from 'mysql';
@@ -29,7 +29,6 @@ console.log('store.path', store.path);
 
 function createWindow(): void {
   MAIN_WINDOW = new BrowserWindow({
-    title: 'wechatDownload',
     width: 900,
     height: 670,
     show: false,
@@ -98,20 +97,17 @@ app.whenReady().then(() => {
         });
     }
   });
+  // 消息弹框
+  ipcMain.on('show-message-box', (event, options: MessageBoxOptions) => {
+    const _win = BrowserWindow.fromWebContents(event.sender);
+    if (_win) {
+      dialog.showMessageBox(_win, options);
+    }
+  });
   // 根据url下载单篇文章
   ipcMain.on('download-one', (_event, url: string) => downloadOne(url));
   // 批量下载，开启公号文章监测
   ipcMain.on('monitor-article', () => monitorArticle());
-  // 确认是否批量下载
-  ipcMain.on('confirm-download', (_event, flgDownload: boolean) => {
-    if (flgDownload) {
-      // 开启线程下载
-      createDlWorker(DlEventEnum.BATCH_WEB, GZH_INFO);
-    } else {
-      outputLog(`已取消下载！`, true);
-      MAIN_WINDOW.webContents.send('download-fnish');
-    }
-  });
   // 测试数据库连接
   ipcMain.on('test-connect', async () => testMysqlConnection());
 
@@ -230,7 +226,22 @@ function createProxy(): AnyProxy.ProxyServer {
               MAIN_WINDOW.focus();
             }
             // 页面弹框确认
-            MAIN_WINDOW.webContents.send('confirm-title', title);
+            dialog
+              .showMessageBox(MAIN_WINDOW, {
+                type: 'info',
+                title: '下载',
+                message: '请确认是否批量下载该文章所属公号',
+                buttons: ['取消', '确定']
+              })
+              .then((index) => {
+                if (index.response === 1) {
+                  // 开启线程下载
+                  createDlWorker(DlEventEnum.BATCH_WEB, GZH_INFO);
+                } else {
+                  outputLog(`已取消下载！`, true);
+                  MAIN_WINDOW.webContents.send('download-fnish');
+                }
+              });
 
             AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
             if (TIMER) clearTimeout(TIMER);
@@ -271,9 +282,15 @@ async function testMysqlConnection() {
     CONNECTION.query(sql, (err) => {
       if (err) {
         console.log('mysql连接失败', err);
-        MAIN_WINDOW.webContents.send('alert', '连接失败，请检查参数');
+        dialog.showMessageBox(MAIN_WINDOW, {
+          type: 'error',
+          message: '连接失败，请检查参数'
+        });
       } else {
-        MAIN_WINDOW.webContents.send('alert', '连接成功');
+        dialog.showMessageBox(MAIN_WINDOW, {
+          type: 'info',
+          message: '连接成功'
+        });
       }
       return CONNECTION;
     });
