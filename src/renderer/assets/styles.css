@@ -150,7 +150,15 @@ body {
   margin-right: 8px;
 }
 
-.setting-contain .middle .left .item {
+.setting-contain .middle .left .multi  {
+  display: flex;
+}
+
+.setting-contain .middle .left .multi .multi-item {
+  width: 50%;
+}
+
+.setting-contain .middle .left .multi .item {
   margin-bottom: 8px;
 }
 

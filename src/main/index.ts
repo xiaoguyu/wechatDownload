@@ -317,6 +317,10 @@ function setDefaultSetting() {
     dlSource: 'web',
     // 下载为markdown
     dlMarkdown: 1,
+    // 下载音频到本地
+    dlAudio: 0,
+    // 下载图片到本地
+    dlImg: 0,
     // 跳过现有文章
     skinExist: 1,
     // 添加原文链接

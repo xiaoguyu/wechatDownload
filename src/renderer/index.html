@@ -45,12 +45,19 @@
               下载来源<br />
               <input type="radio" name="dlSource" value="web" />网络 <input type="radio" name="dlSource" value="db" />数据库
             </div>
-            <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
-            <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
-            <div class="item"><input type="checkbox" name="dlMysql" />保存至Mysql</div>
-            <div title="不勾选则使用网络图片" class="item"><input type="checkbox" name="dlImg" />下载图片到本地</div>
-            <div title="不勾选则覆盖现有文章" class="item"><input type="checkbox" name="skinExist" />跳过现有文章</div>
-            <div class="item"><input type="checkbox" name="sourceUrl" />添加原文链接</div>
+            <div class="multi">
+              <div class="multi-item">
+                <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
+                <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
+                <div class="item"><input type="checkbox" name="dlMysql" />保存至Mysql</div>
+                <div class="item"><input type="checkbox" name="sourceUrl" />添加原文链接</div>
+              </div>
+              <div class="multi-item">
+                <div class="item"><input type="checkbox" name="dlAudio" />下载音频到本地</div>
+                <div title="不勾选则使用网络图片" class="item"><input type="checkbox" name="dlImg" />下载图片到本地</div>
+                <div title="不勾选则覆盖现有文章" class="item"><input type="checkbox" name="skinExist" />跳过现有文章</div>
+              </div>
+            </div>
           </div>
           <div class="right">
             <div class="item div-border">

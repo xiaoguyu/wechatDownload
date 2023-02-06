@@ -115,17 +115,17 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
 
   // 判断是否需要下载图片
-  let content;
   let imgCount = 0;
+  const $ = cheerio.load(article.content);
   if (1 == downloadOption.dlImg) {
-    await downloadImgToHtml(article.content, savePath, tmpPath).then((obj) => {
-      content = obj.html;
+    await downloadImgToHtml($, savePath, tmpPath).then((obj) => {
       imgCount = obj.imgCount;
     });
-  } else {
-    content = article.content;
   }
-  const $ = cheerio.load(content);
+
+  // 处理音频
+  await convertAudio($, savePath, tmpPath);
+
   const readabilityPage = $('#readability-page-1');
   // 插入原文链接
   readabilityPage.prepend(`<div>原文地址：<a href='${url}' target='_blank'>${article.title}</a></div>`);
@@ -183,13 +183,11 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
 /*
  * 下载图片并替换src
- * html： 正文的html
- * articleUrl： 原文url
+ * $: cheerio对象
  * savePath: 保存文章的路径(已区分文章),例如: D://savePath//测试文章1
  * tmpPath： 缓存路径(已区分文章)，例如：D://tmpPathPath//6588aec6b658b2c941f6d51d0b1691b9
  */
-async function downloadImgToHtml(html: string, savePath: string, tmpPath: string): Promise<{ html: string; imgCount: number }> {
-  const $ = cheerio.load(html);
+async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<{ imgCount: number }> {
   const imgArr = $('img');
   const awaitArr: Promise<void>[] = [];
   let imgCount = 0;
@@ -230,7 +228,110 @@ async function downloadImgToHtml(html: string, savePath: string, tmpPath: string
   for (const dlPromise of awaitArr) {
     await dlPromise;
   }
-  return { html: $.html(), imgCount: imgCount };
+  return { imgCount: imgCount };
+}
+
+/*
+ * 下载音乐并替换src
+ * $: cheerio对象
+ * savePath: 保存文章的路径(已区分文章),例如: D://savePath//测试文章1
+ * tmpPath： 缓存路径(已区分文章)，例如：D://tmpPathPath//6588aec6b658b2c941f6d51d0b1691b9
+ */
+async function convertAudio($, savePath: string, tmpPath: string) {
+  const musicArr = $('qqmusic');
+  const mpvoiceArr = $('mpvoice');
+
+  // 创建歌曲的文件夹
+  const songPath = path.join(savePath, 'song');
+  if ((musicArr.length > 0 || mpvoiceArr.length > 0) && !fs.existsSync(songPath)) {
+    fs.mkdirSync(songPath, { recursive: true });
+  }
+
+  const awaitArr: Promise<void>[] = [];
+  // 处理QQ音乐
+  for (const elem of musicArr) {
+    const $ele = $(elem);
+    // 歌名
+    const musicName = $ele.attr('music_name');
+    // 歌手名
+    const singer = $ele.attr('singer');
+    // 歌曲id
+    const mid = $ele.attr('mid');
+    // QQ音乐接口获取歌曲信息
+    await axios.get(`https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info&song_mid=${mid}`).then((resp) => {
+      const dataObj = resp.data;
+      const songDesc = JSON.parse(dataObj['resp_data']);
+      const songInfo = songDesc.songlist[0];
+      const songSrc = songInfo['song_play_url_standard'];
+      if (songSrc) {
+        const fileName = `${mid}.m4a`;
+        awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
+      }
+    });
+  }
+  // 处理作者录制的音频
+  for (const elem of mpvoiceArr) {
+    const $ele = $(elem);
+    // 歌名
+    const musicName = $ele.attr('name');
+    // 歌曲id
+    const mid = $ele.attr('voice_encode_fileid');
+    const songSrc = `https://res.wx.qq.com/voice/getvoice?mediaid=${mid}`;
+    const fileName = `${mid}.mp3`;
+    // 下载音频到本地
+    awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName));
+  }
+
+  for (const dlPromise of awaitArr) {
+    await dlPromise;
+  }
+}
+/*
+ * 下载音频
+ * $: cheerio对象
+ * musicName：音乐名
+ * songSrc：歌曲url
+ * songPath：歌曲保存路径
+ * tmpPath：缓存路径
+ * fileName：歌曲文件名
+ * singer：歌手
+ */
+async function downloadSong($ele, musicName: string, songSrc: string, songPath: string, tmpPath: string, fileName: string, singer?: string): Promise<void> {
+  if (1 == downloadOption.dlAudio) {
+    await FileUtil.downloadFile(songSrc, tmpPath, fileName).then((_fileName) => {
+      // 音频下载完成之后，从缓存文件夹复制到需要保存的文件夹
+      const resolveSavePath = path.join(songPath, _fileName);
+      if (!fs.existsSync(resolveSavePath)) {
+        // 复制
+        fs.copyFileSync(path.join(tmpPath, _fileName), resolveSavePath);
+      }
+      songSrc = path.join('song', _fileName);
+      addSongDiv($ele, musicName, songSrc, singer);
+    });
+  } else {
+    addSongDiv($ele, musicName, songSrc, singer);
+  }
+}
+/*
+ * 添加音频展示的div
+ * musicName：音乐名
+ * songSrc：歌曲url
+ * singer：歌手
+ */
+function addSongDiv($ele, musicName: string, songSrc: string, singer?: string) {
+  $ele.after(`
+  <div class="music-div">
+    <div>
+      <div class="music_card_title">${musicName}</div>
+      ${singer ? '<div class="music_card_desc">' + singer + '</div>' : ''}
+    </div>
+    <div class="audio-dev">
+      <audio controls="controls" loop="loop">
+        <source src="${songSrc}" type="audio/mpeg"></source>
+      </audio>
+    </div>
+  </div>
+`);
 }
 
 /*

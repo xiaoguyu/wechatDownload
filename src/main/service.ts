@@ -48,6 +48,8 @@ class DownloadOption {
   public dlMarkdown?: number;
   // 保存至mysql
   public dlMysql?: number;
+  // 下载音频到本地
+  public dlAudio?: number;
   // 下载图片到本地
   public dlImg?: number;
   // 跳过现有文章
@@ -239,6 +241,32 @@ class Service {
           position: relative;
           font-family: Consolas,Liberation Mono,Menlo,Courier,monospace;
       }
+      .music-div audio {
+        min-width: 300px;
+        width: 100%;
+        height: 30px;
+      }
+      .music-div {
+        display: flex;
+        background-color: #f1f3f4;
+        align-items: center;
+        padding: 8px 8px 8px 20px;
+        margin: 10px 0;
+      }
+      .audio-dev {
+        flex: 1;
+      }
+      .music_card_title {
+          font-size: 17px;
+          font-weight: 700;
+      }
+      .music_card_desc {
+        color: rgba(0,0,0,.5);
+          font-weight: 400;
+          font-size: 12px;
+          padding-top: 8px;
+          padding-right: 1.33333333em;
+      }
       </style>
     `;
   }
@@ -264,6 +292,15 @@ class Service {
   public createTurndownService() {
     const TurndownService = require('turndown');
     const turndownService = new TurndownService({ codeBlockStyle: 'fenced' });
+    // 音频原样输出
+    turndownService.addRule('audio', {
+      filter: function (node) {
+        return node.nodeName == 'AUDIO';
+      },
+      replacement: function (_content, node: HTMLElement) {
+        return node.outerHTML;
+      }
+    });
     // 专门针对微信公号文章页面做得规则
     turndownService.addRule('pre', {
       filter: function (node, options) {
