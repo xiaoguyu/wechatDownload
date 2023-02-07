@@ -20,9 +20,9 @@ Electron + Typescript
 
 ### 使用
 
-![image-20230112181356841](https://img.javaedit.com/images/2023/01/12/fe4b589cdf114a09f632cf8fa5e55f0c.png)
+![image-20230112181356841](https://img.javaedit.com/images/2023/02/07/20450813ab77bc1c8ed7528fff28185a.png)
 
-![image-20230117115453694](https://img.javaedit.com/images/2023/01/17/7e2fbcb74217368ecb5fe347b173a0d0.png)
+![image-20230117115453694](https://img.javaedit.com/images/2023/02/07/400719351ac56cc0a92593ab3c86ff3a.png)
 
 - 单篇文章下载
 
@@ -30,10 +30,13 @@ Electron + Typescript
 
 - 批量下载
 
-  1. 安装证书：去**设置中心**页面，点击**打开证书路径**按钮，双击**rootCA.crt**文件进行安装（已经安装过证书的忽略此步骤）
-  2. 点击**批量下载**按钮，开始监听微信公号数据
-  3. 在 PC 版微信中随意打开一篇需要批量下载的公号的文章（点击批量下载按钮前就打开的文章不算，别偷懒）
-  4. wechatDownload 弹框确认监听到的文章是否正确，选择是则直接开始批量下载
+  1. 初次使用请安装证书,设置中心 → 打开证书路径 → 打开rootCA.crt文件
+    ![Untitled](https://img.javaedit.com/images/2023/02/07/1dc6bcf1c15dd3cb17985eb555027c2b.png)
+  2. 需要安装电脑版微信
+  3. 点击**批量下载**按钮，开始监听微信公号数据
+  4. 在电脑版微信打开一篇需要下载的公号的文章
+  5. 回到WechatDownload，会弹框提示
+    ![wechatDownload.gif](https://img.javaedit.com/images/2023/02/07/693133554baca2716bc52206f1d5613b.gif)
 
 - 保存至 MySql
 

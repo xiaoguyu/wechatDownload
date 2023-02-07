@@ -298,6 +298,7 @@ async function convertAudio($, savePath: string, tmpPath: string) {
  */
 async function downloadSong($ele, musicName: string, songSrc: string, songPath: string, tmpPath: string, fileName: string, singer?: string): Promise<void> {
   if (1 == downloadOption.dlAudio) {
+    resp(NwrEnum.SUCCESS, `正在下载歌曲【${musicName}】...`);
     await FileUtil.downloadFile(songSrc, tmpPath, fileName).then((_fileName) => {
       // 音频下载完成之后，从缓存文件夹复制到需要保存的文件夹
       const resolveSavePath = path.join(songPath, _fileName);
@@ -307,6 +308,7 @@ async function downloadSong($ele, musicName: string, songSrc: string, songPath: 
       }
       songSrc = path.join('song', _fileName);
       addSongDiv($ele, musicName, songSrc, singer);
+      resp(NwrEnum.SUCCESS, `歌曲【${musicName}】下载完成...`);
     });
   } else {
     addSongDiv($ele, musicName, songSrc, singer);
