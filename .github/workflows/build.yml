@@ -1,0 +1,35 @@
+name: build
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - name: Check out Git repository
+      uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18.x
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: build win
+      run: npm run build:win
+
+    - name: release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: "dist/*.exe"
+        draft: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}

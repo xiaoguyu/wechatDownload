@@ -8,6 +8,7 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.js,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asar: true
 asarUnpack:
   - '**/*.{node,dll}'
 afterSign: build/notarize.js
@@ -18,7 +19,7 @@ nsis:
   allowElevation: true # 是否允许请求提升，如果为false，则用户必须使用提升的权限重新启动安装程序 （仅作用于辅助安装程序）
   allowToChangeInstallationDirectory: true # 是否允许修改安装目录 （仅作用于辅助安装程序）
   createStartMenuShortcut: true # 是否创建开始菜单快捷方式
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${productName}-${version}-${platform}-${arch}.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
