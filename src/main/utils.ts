@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
+import logger from './logger';
 
 class FileUtil {
   /*
@@ -27,7 +28,7 @@ class FileUtil {
         response.data.pipe(writer);
       })
       .catch((error) => {
-        console.log(`下载文件失败，url:${url}`, error);
+        logger.error(`下载文件失败，url:${url}`, error);
       });
 
     return new Promise((resolve, reject) => {

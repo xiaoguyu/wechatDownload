@@ -1,4 +1,5 @@
 import { parentPort, workerData } from 'worker_threads';
+import logger from './logger';
 import { StrUtil, FileUtil, DateUtil } from './utils';
 import { GzhInfo, ArticleInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
@@ -18,6 +19,8 @@ const turndownService = service.createTurndownService();
 const DOWNLOAD_LIMIT = 10;
 // 获取文章列表的url
 const LIST_URL = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
+const COMMENT_LIST_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcomment&offset=0&limit=100&f=json';
+const COMMENT_REPLY_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcommentreply&offset=0&limit=100&is_first=1&f=json';
 // 插入数据库的sql
 const TABLE_NAME = workerData.tableName;
 const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
@@ -60,20 +63,117 @@ port.on('message', async () => {
 });
 
 port.on('close', () => {
-  console.log('on 线程关闭');
+  logger.info('on 线程关闭');
 });
 
 port.addListener('close', () => {
-  console.log('addListener 线程关闭');
+  logger.info('addListener 线程关闭');
 });
 
 async function axiosDlOne(articleInfo: ArticleInfo) {
-  const response = await axios.get(articleInfo.contentUrl);
-  if (response.status != 200) {
-    resp(NwrEnum.FAIL, `下载失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
-    return;
+  await axios
+    .get(articleInfo.contentUrl)
+    .then((response) => {
+      if (response.status != 200) {
+        logger.error(`获取页面数据失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
+        resp(NwrEnum.FAIL, `下载失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
+        return;
+      }
+      articleInfo.html = response.data;
+    })
+    .catch((error) => {
+      logger.error('获取页面数据失败', error);
+    });
+  if (!articleInfo.html) return;
+  // 判断是否需要下载评论
+  GZH_INFO = new GzhInfo('MzU0MjYwNDU2Mw==', 'e83d5f5c5ce320ef6b4ff8dfb8863928b3e052eb5b2251d4c6c776662456aed8d06308b257cd27b95d5527d8d64d2e136caf7c4228cf25f99e32f2573caab6031d0ddf105928bab27ee616b484cd634e7c3bb7fcdad50fb3a150557d984a97ba713e01185ccc18c8c3ef13476573ac30022a64211b86f9ce7ed174656161616d', 'MTUyMzQ4NjQ0Mw%3D%3D');
+  GZH_INFO.passTicket = 'r2NNLTcV7RGJ40Tdj3Bh09kPkP7sbA7FDBBl5HQP3aMdLuuY1hoBrqYbpy5YtE3HYIdNXZHvIkAdt0PsbnAORQ%3D%3D';
+  GZH_INFO.Host = 'mp.weixin.qq.com';
+  GZH_INFO.Cookie =
+    'rewardsn=; wxtokenkey=777; wxuin=1523486443; devicetype=Windows10x64; version=6309001c; lang=zh_CN; appmsg_token=1210_TaxpSBtrEi7jtx9xD5H7ZTRRNxN7JeLw4IkZwHD3uoOT2aey_36CHi8W2oqHugUbFvpUuL5fsv2pQKOb; pass_ticket=r2NNLTcV7RGJ40Tdj3Bh09kPkP7sbA7FDBBl5HQP3aMdLuuY1hoBrqYbpy5YtE3HYIdNXZHvIkAdt0PsbnAORQ==; wap_sid2=COudutYFEooBeV9ISjc2c3RmUWc3d0pIMGZlbnBmbDVIZnAtcjdnVmdjUVV6cmRHeXVVZk5oOFdFZUtSWmM2ZERZM1AtU3IwTnZZc3lvYkpESElsaHJ1cjJpY1RXR29ydU1Rd3U0enJzTVZMdG9IOE1CaVlsV2pNODBiSFc1Ty1RWjVManRwS2laSnVwY1NBQUF+MKqI76AGOA1AAQ==';
+  GZH_INFO.UserAgent = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x6309001c) XWEB/6500';
+  if (1 == downloadOption.dlComment && GZH_INFO) {
+    const commentId = service.matchCommentId(articleInfo.html);
+    const headers = {
+      Host: GZH_INFO.Host,
+      Connection: 'keep-alive',
+      'User-Agent': GZH_INFO.UserAgent,
+      Cookie: GZH_INFO.Cookie,
+      Referer: articleInfo.contentUrl
+    };
+    // 评论列表
+    let commentList;
+    // 评论回复map
+    const replyDetailMap = new Map();
+    await axios
+      .get(COMMENT_LIST_URL, {
+        params: {
+          __biz: GZH_INFO.biz,
+          key: GZH_INFO.key,
+          uin: GZH_INFO.uin,
+          comment_id: commentId
+        },
+        headers: headers
+      })
+      .then((response) => {
+        if (response.status != 200) {
+          logger.error(`获取精选评论失败，状态码：${response.status}`, articleInfo.contentUrl);
+          resp(NwrEnum.FAIL, `获取精选评论失败，状态码：${response.status}`);
+          return;
+        }
+        const resData = response.data;
+        if (resData.base_resp.errmsg != 'ok') {
+          logger.error(`获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
+          resp(NwrEnum.FAIL, `获取精选评论失败：${resData.base_resp.errmsg}`);
+          return;
+        }
+        commentList = resData.elected_comment;
+        logger.debug('精选评论', commentList);
+      })
+      .catch((error) => {
+        logger.error('获取精选评论失败', error, articleInfo.contentUrl);
+      });
+
+    // 处理评论的回复
+    if (1 == downloadOption.dlCommentReply && commentList) {
+      for (const commentItem of commentList) {
+        const replyInfo = commentItem.reply_new;
+        if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
+          await axios
+            .get(COMMENT_REPLY_URL, {
+              params: {
+                __biz: GZH_INFO.biz,
+                key: GZH_INFO.key,
+                uin: GZH_INFO.uin,
+                comment_id: commentId,
+                content_id: commentItem.content_id,
+                max_reply_id: replyInfo.max_reply_id
+              },
+              headers: headers
+            })
+            .then((response) => {
+              if (response.status != 200) {
+                logger.error(`获取评论回复失败，状态码：${response.status}`);
+                resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
+                return;
+              }
+              const resData = response.data;
+              if (resData.base_resp.errmsg != 'ok') {
+                logger.error(`获取评论回复失败`, resData.base_resp);
+                resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
+                return;
+              }
+              replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;
+            })
+            .catch((error) => {
+              logger.error('获取评论回复失败', error);
+            });
+        }
+      }
+    }
+    articleInfo.commentList = commentList;
+    articleInfo.replyDetailMap = replyDetailMap;
   }
-  articleInfo.html = response.data;
   await dlOne(articleInfo);
 }
 
@@ -140,9 +240,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
         const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
         CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
           if (err) {
-            console.log('mysql插入失败', err.message);
+            logger.error('mysql插入失败', err.message);
           } else {
-            console.log('mysql更新成功');
+            logger.info('mysql更新成功');
           }
           resolve();
         });
@@ -154,7 +254,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     const markdownStr = turndownService.turndown($.html());
     proArr.push(
       new Promise((resolve, _reject) => {
-        fs.writeFile(path.join(savePath, 'index.md'), markdownStr, () => {
+        // 添加评论
+        const commentStr = service.getMarkdownComment(articleInfo.commentList, articleInfo.replyDetailMap);
+        fs.writeFile(path.join(savePath, 'index.md'), markdownStr + commentStr, () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存Markdown完成`);
           resolve();
         });
@@ -164,9 +266,16 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 判断是否保存html
   if (1 == downloadOption.dlHtml) {
     // 添加样式美化
-    $('head').append(service.getArticleCss());
+    const headEle = $('head');
+    headEle.append(service.getArticleCss());
+    // 添加评论数据
+    if (articleInfo.commentList) {
+      headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap));
+    }
     proArr.push(
       new Promise((resolve, _reject) => {
+        // 评论的div块
+        readabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
         fs.writeFile(path.join(savePath, 'index.html'), $.html(), () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存HTML完成`);
           resolve();
@@ -214,10 +323,7 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
           // 复制
           fs.copyFile(path.join(tmpPath, _fileName), resolveSavePath, (err) => {
             if (err) {
-              console.log(err);
-              console.log(`复制图片失败，名字：${_fileName}`);
-              console.log('tmpPath', path.resolve(tmpPath, _fileName));
-              console.log('resolveSavePath', resolveSavePath);
+              logger.error(err, `复制图片失败，名字：${_fileName}`, 'tmpPath', path.resolve(tmpPath, _fileName), 'resolveSavePath', resolveSavePath);
             }
           });
         }
@@ -258,16 +364,21 @@ async function convertAudio($, savePath: string, tmpPath: string) {
     // 歌曲id
     const mid = $ele.attr('mid');
     // QQ音乐接口获取歌曲信息
-    await axios.get(`https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info&song_mid=${mid}`).then((resp) => {
-      const dataObj = resp.data;
-      const songDesc = JSON.parse(dataObj['resp_data']);
-      const songInfo = songDesc.songlist[0];
-      const songSrc = songInfo['song_play_url_standard'];
-      if (songSrc) {
-        const fileName = `${mid}.m4a`;
-        awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
-      }
-    });
+    await axios
+      .get(`https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info&song_mid=${mid}`)
+      .then((resp) => {
+        const dataObj = resp.data;
+        const songDesc = JSON.parse(dataObj['resp_data']);
+        const songInfo = songDesc.songlist[0];
+        const songSrc = songInfo['song_play_url_standard'];
+        if (songSrc) {
+          const fileName = `${mid}.m4a`;
+          awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
+        }
+      })
+      .catch((error) => {
+        logger.error(`音频下载失败，mid:${mid}`, error);
+      });
   }
   // 处理作者录制的音频
   for (const elem of mpvoiceArr) {
@@ -350,7 +461,7 @@ async function batchDownloadFromDb() {
   const modSqlParams = [startDate, endDate];
   CONNECTION.query(SELECT_SQL, modSqlParams, async function (err, result) {
     if (err) {
-      console.log('获取数据库数据失败', err.message);
+      logger.error('获取数据库数据失败', err.message);
       resp(NwrEnum.BATCH_FINISH, '获取数据库数据失败');
     } else {
       let articleCount = 0;
@@ -419,23 +530,42 @@ async function batchDownloadFromWeb() {
  * articleCount：文章数量
  */
 async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, articleCount: number[]) {
-  const response = await axios.get(LIST_URL, {
-    params: {
-      __biz: GZH_INFO.biz,
-      key: GZH_INFO.key,
-      uin: GZH_INFO.uin,
-      offset: nextOffset
-    }
-  });
-  if (response.status != 200) {
-    resp(NwrEnum.FAIL, `获取文章列表失败，状态码：${response.status}`);
-    return;
-  }
+  let dataObj;
+  logger.debug('下载文章列表', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
+  await axios
+    .get(LIST_URL, {
+      params: {
+        __biz: GZH_INFO.biz,
+        key: GZH_INFO.key,
+        uin: GZH_INFO.uin,
+        pass_ticket: GZH_INFO.passTicket,
+        offset: nextOffset
+      },
+      headers: {
+        Host: GZH_INFO.Host,
+        Connection: 'keep-alive',
+        'User-Agent': GZH_INFO.UserAgent,
+        Cookie: GZH_INFO.Cookie,
+        Referer: `https://mp.weixin.qq.com/mp/profile_ext?action=home&lang=zh_CN&__biz=${GZH_INFO.biz}&uin=${GZH_INFO.uin}&key=${GZH_INFO.key}&pass_ticket=${GZH_INFO.passTicket}`
+      }
+    })
+    .then((response) => {
+      if (response.status != 200) {
+        logger.error(`获取文章列表失败，状态码：${response.status}`, GZH_INFO);
+        resp(NwrEnum.FAIL, `获取文章列表失败，状态码：${response.status}`);
+        return;
+      }
+      dataObj = response.data;
+      logger.debug('列表数据', dataObj);
+    })
+    .catch((error) => {
+      logger.error('获取文章列表失败', error, GZH_INFO);
+    });
+  if (!dataObj) return;
   const oldArticleLengh = articleArr.length;
-  const dataObj = response.data;
   const errmsg = dataObj['errmsg'];
   if ('ok' != errmsg) {
-    console.log('下载列表url', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&offset=${nextOffset}`);
+    logger.error('获取文章列表失败', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
     resp(NwrEnum.FAIL, `获取文章列表失败，错误信息：${errmsg}`);
     return;
   }
@@ -505,10 +635,10 @@ async function createMysqlConnection(): Promise<mysql.Connection> {
       CONNECTION.query(sql, (err) => {
         if (err) {
           resp(NwrEnum.FAIL, 'mysql连接失败');
-          console.log('mysql连接失败', err);
+          logger.error('mysql连接失败', err);
         } else {
           resp(NwrEnum.SUCCESS, 'mysql连接成功');
-          console.log('连接成功');
+          logger.info('连接成功');
         }
         resolve(CONNECTION);
       });

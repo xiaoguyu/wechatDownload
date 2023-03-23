@@ -8,6 +8,7 @@ import * as AnyProxy from 'anyproxy';
 import * as path from 'path';
 import * as os from 'os';
 import { HttpUtil } from './utils';
+import logger from './logger';
 import { GzhInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
 import creatWorker from './worker?nodeWorker';
 
@@ -25,7 +26,7 @@ let GZH_INFO: GzhInfo;
 let TIMER: NodeJS.Timeout;
 
 // 配置的保存文件的路径
-console.log('store.path', store.path);
+logger.info('store.path', store.path);
 
 function createWindow(): void {
   MAIN_WINDOW = new BrowserWindow({
@@ -93,7 +94,7 @@ app.whenReady().then(() => {
           }
         })
         .catch((err) => {
-          console.log(err);
+          logger.error(err);
         });
     }
   });
@@ -217,8 +218,18 @@ function createProxy(): AnyProxy.ProxyServer {
           const uin = HttpUtil.getQueryVariable(requestDetail.url, 'uin');
           const biz = HttpUtil.getQueryVariable(requestDetail.url, '__biz');
           const key = HttpUtil.getQueryVariable(requestDetail.url, 'key');
+          const passTicket = HttpUtil.getQueryVariable(requestDetail.url, 'pass_ticket');
           if (uin && biz && key) {
             GZH_INFO = new GzhInfo(biz, key, uin);
+            GZH_INFO.passTicket = passTicket;
+            const headers = requestDetail.requestOptions.headers;
+            if (headers) {
+              GZH_INFO.Host = headers['Host'] as string;
+              GZH_INFO.Cookie = headers['Cookie'] as string;
+              GZH_INFO.UserAgent = headers['User-Agent'] as string;
+            }
+
+            logger.debug('微信公号参数', GZH_INFO);
             const $ = cheerio.load(responseDetail.response.body);
             const title = $('h1').text().trim();
             outputLog(`已监测到【${title}】，请确认是否批量下载该文章所属公号`, true);
@@ -245,6 +256,8 @@ function createProxy(): AnyProxy.ProxyServer {
 
             AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
             if (TIMER) clearTimeout(TIMER);
+          } else {
+            logger.error('微信公号参数获取失败', requestDetail);
           }
         }
         return responseDetail;
@@ -281,7 +294,7 @@ async function testMysqlConnection() {
     const sql = 'show tables';
     CONNECTION.query(sql, (err) => {
       if (err) {
-        console.log('mysql连接失败', err);
+        logger.error('mysql连接失败', err);
         dialog.showMessageBox(MAIN_WINDOW, {
           type: 'error',
           message: '连接失败，请检查参数'
@@ -325,6 +338,10 @@ function setDefaultSetting() {
     skinExist: 1,
     // 添加原文链接
     sourceUrl: 1,
+    // 是否下载评论
+    dlComment: 0,
+    // 是否下载评论回复
+    dlCommentReply: 0,
     // 下载范围-全部
     dlScpoe: 'all',
     // 缓存目录
