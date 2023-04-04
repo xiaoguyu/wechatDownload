@@ -30,6 +30,10 @@ body {
   box-sizing: border-box;
 }
 
+.b-clicked {
+  background-color: #ff00002b;
+}
+
 .menu {
   position: fixed;
   background-color: #f3f3f3;

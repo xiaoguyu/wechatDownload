@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { HttpUtil } from './utils';
 import logger from './logger';
-import { GzhInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
+import { GzhInfo, ArticleInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
 import creatWorker from './worker?nodeWorker';
 
 const _AnyProxy = require('anyproxy');
@@ -24,6 +24,8 @@ let MAIN_WINDOW: BrowserWindow;
 let GZH_INFO: GzhInfo;
 // 用于定时关闭代理的对象
 let TIMER: NodeJS.Timeout;
+let DL_TYPE = DlEventEnum.BATCH_WEB;
+let articleArr;
 
 // 配置的保存文件的路径
 logger.info('store.path', store.path);
@@ -107,8 +109,11 @@ app.whenReady().then(() => {
   });
   // 根据url下载单篇文章
   ipcMain.on('download-one', (_event, url: string) => downloadOne(url));
-  // 批量下载，开启公号文章监测
+  // 批量下载，开启公号文章监测，获取用户参数
   ipcMain.on('monitor-article', () => monitorArticle());
+  // 批量下载，开启公号文章监测，获取用户参数和文章地址
+  ipcMain.on('monitor-limit-article', () => monitorLimitArticle());
+  ipcMain.on('stop-monitor-limit-article', () => stopMonitorLimitArticle());
   // 测试数据库连接
   ipcMain.on('test-connect', async () => testMysqlConnection());
 
@@ -174,7 +179,7 @@ function createDlWorker(dlEvent: DlEventEnum, data?) {
 }
 
 /*
- * 开启公号文章监测
+ * 开启公号文章监测,获取用户参数
  */
 async function monitorArticle() {
   if ('db' == store.get('dlSource')) {
@@ -187,6 +192,7 @@ async function monitorArticle() {
     if (!PROXY_SERVER) {
       PROXY_SERVER = createProxy();
     }
+    DL_TYPE = DlEventEnum.BATCH_WEB;
     // 开启代理
     AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001');
     AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001', 'https');
@@ -204,6 +210,34 @@ async function monitorArticle() {
   }
 }
 /*
+ * 开启公号文章监测,获取文章地址和用户参数
+ */
+async function monitorLimitArticle() {
+  if (!PROXY_SERVER) {
+    PROXY_SERVER = createProxy();
+  }
+  DL_TYPE = DlEventEnum.BATCH_SELECT;
+  articleArr = [];
+  // 开启代理
+  AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001');
+  AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001', 'https');
+  outputLog('代理开启成功，准备批量下载...');
+  outputLog('请在微信打开需要下载的文章，可打开多篇文章', true);
+}
+async function stopMonitorLimitArticle() {
+  // 关闭代理
+  AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
+
+  // 开启线程下载
+  if (articleArr && articleArr.length > 0) {
+    outputLog(`已获取${articleArr.length}篇文章，准备下载...`, true);
+    createDlWorker(DlEventEnum.BATCH_SELECT, articleArr);
+  } else {
+    outputLog('获取文章失败', true);
+  }
+  articleArr = [];
+}
+/*
  * 创建代理
  */
 function createProxy(): AnyProxy.ProxyServer {
@@ -214,7 +248,8 @@ function createProxy(): AnyProxy.ProxyServer {
     rule: {
       summary: 'My Custom Rule',
       beforeSendResponse(requestDetail, responseDetail) {
-        if (requestDetail.url.indexOf('https://mp.weixin.qq.com/s') == 0) {
+        // 批量下载
+        if (DL_TYPE == DlEventEnum.BATCH_WEB && requestDetail.url.indexOf('https://mp.weixin.qq.com/s') == 0) {
           const uin = HttpUtil.getQueryVariable(requestDetail.url, 'uin');
           const biz = HttpUtil.getQueryVariable(requestDetail.url, '__biz');
           const key = HttpUtil.getQueryVariable(requestDetail.url, 'key');
@@ -260,6 +295,34 @@ function createProxy(): AnyProxy.ProxyServer {
             logger.error('微信公号参数获取失败', requestDetail);
           }
         }
+        // 单条下载
+        if (DL_TYPE == DlEventEnum.BATCH_SELECT && requestDetail.url.indexOf('https://mp.weixin.qq.com/mp/geticon') == 0) {
+          const headers = requestDetail.requestOptions.headers;
+          if (headers) {
+            const referer = headers['Referer'] as string;
+            const uin = HttpUtil.getQueryVariable(referer, 'uin');
+            const biz = HttpUtil.getQueryVariable(referer, '__biz');
+            const key = HttpUtil.getQueryVariable(referer, 'key');
+            const mid = HttpUtil.getQueryVariable(referer, 'mid');
+            const sn = HttpUtil.getQueryVariable(referer, 'sn');
+            const chksm = HttpUtil.getQueryVariable(referer, 'chksm');
+            const idx = HttpUtil.getQueryVariable(referer, 'idx');
+            const gzhInfo = new GzhInfo(biz, key, uin);
+            gzhInfo.Cookie = headers['Cookie'] as string;
+            gzhInfo.UserAgent = headers['User-Agent'] as string;
+
+            const articleUrl = `http://mp.weixin.qq.com/s?__biz=${biz}&amp;mid=${mid}&amp;idx=${idx}&amp;sn=${sn}&amp;chksm=${chksm}&amp;scene=27#wechat_redirect`;
+
+            const articleInfo = new ArticleInfo(null, null, '');
+            articleInfo.contentUrl = articleUrl;
+            articleInfo.gzhInfo = gzhInfo;
+
+            articleArr.push(articleInfo);
+
+            outputLog(`已获取文章，mid：${mid}`, true);
+          }
+        }
+
         return responseDetail;
       }
     }

@@ -23,8 +23,8 @@ const COMMENT_LIST_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getc
 const COMMENT_REPLY_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcommentreply&offset=0&limit=100&is_first=1&f=json';
 // 插入数据库的sql
 const TABLE_NAME = workerData.tableName;
-const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
-const SELECT_SQL = `SELECT title, content, author, content_url, create_time FROM ${TABLE_NAME} WHERE create_time >= ? AND create_time <= ?`;
+const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat, comm, comm_reply) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
+const SELECT_SQL = `SELECT title, content, author, content_url, create_time, comm, comm_reply FROM ${TABLE_NAME} WHERE create_time >= ? AND create_time <= ?`;
 
 // 数据库连接配置
 const connectionConfig: mysql.ConnectionConfig = workerData.connectionConfig;
@@ -59,6 +59,8 @@ port.on('message', async () => {
   } else if (dlEvent == DlEventEnum.BATCH_DB) {
     // 从数据库批量下载
     await batchDownloadFromDb();
+  } else if (dlEvent == DlEventEnum.BATCH_SELECT) {
+    await batchDownloadFromWebSelect(workerData.data);
   }
 });
 
@@ -85,94 +87,97 @@ async function axiosDlOne(articleInfo: ArticleInfo) {
       logger.error('获取页面数据失败', error);
     });
   if (!articleInfo.html) return;
+  const gzhInfo = articleInfo.gzhInfo;
   // 判断是否需要下载评论
-  GZH_INFO = new GzhInfo('MzU0MjYwNDU2Mw==', 'e83d5f5c5ce320ef6b4ff8dfb8863928b3e052eb5b2251d4c6c776662456aed8d06308b257cd27b95d5527d8d64d2e136caf7c4228cf25f99e32f2573caab6031d0ddf105928bab27ee616b484cd634e7c3bb7fcdad50fb3a150557d984a97ba713e01185ccc18c8c3ef13476573ac30022a64211b86f9ce7ed174656161616d', 'MTUyMzQ4NjQ0Mw%3D%3D');
-  GZH_INFO.passTicket = 'r2NNLTcV7RGJ40Tdj3Bh09kPkP7sbA7FDBBl5HQP3aMdLuuY1hoBrqYbpy5YtE3HYIdNXZHvIkAdt0PsbnAORQ%3D%3D';
-  GZH_INFO.Host = 'mp.weixin.qq.com';
-  GZH_INFO.Cookie =
-    'rewardsn=; wxtokenkey=777; wxuin=1523486443; devicetype=Windows10x64; version=6309001c; lang=zh_CN; appmsg_token=1210_TaxpSBtrEi7jtx9xD5H7ZTRRNxN7JeLw4IkZwHD3uoOT2aey_36CHi8W2oqHugUbFvpUuL5fsv2pQKOb; pass_ticket=r2NNLTcV7RGJ40Tdj3Bh09kPkP7sbA7FDBBl5HQP3aMdLuuY1hoBrqYbpy5YtE3HYIdNXZHvIkAdt0PsbnAORQ==; wap_sid2=COudutYFEooBeV9ISjc2c3RmUWc3d0pIMGZlbnBmbDVIZnAtcjdnVmdjUVV6cmRHeXVVZk5oOFdFZUtSWmM2ZERZM1AtU3IwTnZZc3lvYkpESElsaHJ1cjJpY1RXR29ydU1Rd3U0enJzTVZMdG9IOE1CaVlsV2pNODBiSFc1Ty1RWjVManRwS2laSnVwY1NBQUF+MKqI76AGOA1AAQ==';
-  GZH_INFO.UserAgent = 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x6309001c) XWEB/6500';
-  if (1 == downloadOption.dlComment && GZH_INFO) {
+  if (1 == downloadOption.dlComment && gzhInfo) {
     const commentId = service.matchCommentId(articleInfo.html);
-    const headers = {
-      Host: GZH_INFO.Host,
-      Connection: 'keep-alive',
-      'User-Agent': GZH_INFO.UserAgent,
-      Cookie: GZH_INFO.Cookie,
-      Referer: articleInfo.contentUrl
-    };
-    // 评论列表
-    let commentList;
-    // 评论回复map
-    const replyDetailMap = new Map();
-    await axios
-      .get(COMMENT_LIST_URL, {
-        params: {
-          __biz: GZH_INFO.biz,
-          key: GZH_INFO.key,
-          uin: GZH_INFO.uin,
-          comment_id: commentId
-        },
-        headers: headers
-      })
-      .then((response) => {
-        if (response.status != 200) {
-          logger.error(`获取精选评论失败，状态码：${response.status}`, articleInfo.contentUrl);
-          resp(NwrEnum.FAIL, `获取精选评论失败，状态码：${response.status}`);
-          return;
-        }
-        const resData = response.data;
-        if (resData.base_resp.errmsg != 'ok') {
-          logger.error(`获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
-          resp(NwrEnum.FAIL, `获取精选评论失败：${resData.base_resp.errmsg}`);
-          return;
-        }
-        commentList = resData.elected_comment;
-        logger.debug('精选评论', commentList);
-      })
-      .catch((error) => {
-        logger.error('获取精选评论失败', error, articleInfo.contentUrl);
-      });
+    if (!commentId) {
+      logger.error('获取精选评论参数失败');
+      resp(NwrEnum.FAIL, '获取精选评论参数失败');
+    } else if (commentId == '0') {
+      logger.info('此文章没有评论');
+      resp(NwrEnum.FAIL, '此文章没有评论');
+    } else {
+      const headers = {
+        Host: gzhInfo.Host,
+        Connection: 'keep-alive',
+        'User-Agent': gzhInfo.UserAgent,
+        Cookie: gzhInfo.Cookie,
+        Referer: articleInfo.contentUrl
+      };
+      // 评论列表
+      let commentList;
+      // 评论回复map
+      const replyDetailMap = new Map();
+      await axios
+        .get(COMMENT_LIST_URL, {
+          params: {
+            __biz: gzhInfo.biz,
+            key: gzhInfo.key,
+            uin: gzhInfo.uin,
+            comment_id: commentId
+          },
+          headers: headers
+        })
+        .then((response) => {
+          if (response.status != 200) {
+            logger.error(`获取精选评论失败，状态码：${response.status}`, articleInfo.contentUrl);
+            resp(NwrEnum.FAIL, `获取精选评论失败，状态码：${response.status}`);
+            return;
+          }
+          const resData = response.data;
+          if (resData.base_resp.errmsg != 'ok') {
+            logger.error(`获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
+            resp(NwrEnum.FAIL, `获取精选评论失败：${resData.base_resp.errmsg}`);
+            return;
+          }
+          commentList = resData.elected_comment;
+          logger.debug('精选评论', commentList);
+        })
+        .catch((error) => {
+          logger.error('获取精选评论失败', error, articleInfo.contentUrl);
+        });
 
-    // 处理评论的回复
-    if (1 == downloadOption.dlCommentReply && commentList) {
-      for (const commentItem of commentList) {
-        const replyInfo = commentItem.reply_new;
-        if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
-          await axios
-            .get(COMMENT_REPLY_URL, {
-              params: {
-                __biz: GZH_INFO.biz,
-                key: GZH_INFO.key,
-                uin: GZH_INFO.uin,
-                comment_id: commentId,
-                content_id: commentItem.content_id,
-                max_reply_id: replyInfo.max_reply_id
-              },
-              headers: headers
-            })
-            .then((response) => {
-              if (response.status != 200) {
-                logger.error(`获取评论回复失败，状态码：${response.status}`);
-                resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
-                return;
-              }
-              const resData = response.data;
-              if (resData.base_resp.errmsg != 'ok') {
-                logger.error(`获取评论回复失败`, resData.base_resp);
-                resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
-                return;
-              }
-              replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;
-            })
-            .catch((error) => {
-              logger.error('获取评论回复失败', error);
-            });
+      // 处理评论的回复
+      if (1 == downloadOption.dlCommentReply && commentList) {
+        for (const commentItem of commentList) {
+          const replyInfo = commentItem.reply_new;
+          if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
+            await axios
+              .get(COMMENT_REPLY_URL, {
+                params: {
+                  __biz: gzhInfo.biz,
+                  key: gzhInfo.key,
+                  uin: gzhInfo.uin,
+                  comment_id: commentId,
+                  content_id: commentItem.content_id,
+                  max_reply_id: replyInfo.max_reply_id
+                },
+                headers: headers
+              })
+              .then((response) => {
+                if (response.status != 200) {
+                  logger.error(`获取评论回复失败，状态码：${response.status}`);
+                  resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
+                  return;
+                }
+                const resData = response.data;
+                if (resData.base_resp.errmsg != 'ok') {
+                  logger.error(`获取评论回复失败`, resData.base_resp);
+                  resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
+                  return;
+                }
+                replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;
+              })
+              .catch((error) => {
+                logger.error('获取评论回复失败', error);
+              });
+          }
         }
       }
+      articleInfo.commentList = commentList;
+      articleInfo.replyDetailMap = replyDetailMap;
     }
-    articleInfo.commentList = commentList;
-    articleInfo.replyDetailMap = replyDetailMap;
   }
   await dlOne(articleInfo);
 }
@@ -195,6 +200,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
   if (!articleInfo.title) articleInfo.title = article.title;
   if (!articleInfo.author) articleInfo.author = article.byline;
+  if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime(htmlStr);
 
   // 创建保存文件夹和缓存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
@@ -237,7 +243,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated' && saveToDb) {
     proArr.push(
       new Promise((resolve, _reject) => {
-        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
+        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.title, articleInfo.datetime];
         CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
           if (err) {
             logger.error('mysql插入失败', err.message);
@@ -468,7 +474,7 @@ async function batchDownloadFromDb() {
       const promiseArr: Promise<void>[] = [];
       for (const dbObj of result) {
         articleCount++;
-        const articleInfo: ArticleInfo = service.dbObjToArticle(dbObj);
+        const articleInfo: ArticleInfo = service.dbObjToArticle(dbObj, downloadOption);
         promiseArr.push(dlOne(articleInfo, false));
         // 栅栏，防止一次性下载太多
         if (promiseArr.length > DOWNLOAD_LIMIT) {
@@ -506,6 +512,7 @@ async function batchDownloadFromWeb() {
   // downList中没下载完的，在这处理
   const promiseArr: Promise<void>[] = [];
   for (const article of articleArr) {
+    article.gzhInfo = GZH_INFO;
     promiseArr.push(axiosDlOne(article));
   }
   // 栅栏，等待所有文章下载完成
@@ -517,6 +524,28 @@ async function batchDownloadFromWeb() {
   const exeTime = (exeEndTime - exeStartTime) / 1000;
 
   resp(NwrEnum.BATCH_FINISH, `批量下载完成，共${articleCount[0]}篇文章，耗时${exeTime.toFixed(2)}秒`);
+
+  finish();
+}
+/*
+ * 批量下载选择的文章
+ */
+async function batchDownloadFromWebSelect(articleArr: ArticleInfo[]) {
+  const exeStartTime = performance.now();
+
+  const promiseArr: Promise<void>[] = [];
+  for (const article of articleArr) {
+    promiseArr.push(axiosDlOne(article));
+  }
+  // 栅栏，等待所有文章下载完成
+  for (const articlePromise of promiseArr) {
+    await articlePromise;
+  }
+
+  const exeEndTime = performance.now();
+  const exeTime = (exeEndTime - exeStartTime) / 1000;
+
+  resp(NwrEnum.BATCH_FINISH, `批量下载完成，共${articleArr.length}篇文章，耗时${exeTime.toFixed(2)}秒`);
 
   finish();
 }

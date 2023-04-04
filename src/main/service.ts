@@ -38,6 +38,7 @@ class ArticleInfo {
   // 评论详细数据
   public replyDetailMap?: Map<unknown, unknown>;
   public copyrightStat?: number;
+  public gzhInfo?: GzhInfo;
 
   constructor(title, datetime, contentUrl) {
     this.title = title;
@@ -113,7 +114,8 @@ enum NwrEnum {
 enum DlEventEnum {
   ONE, // 下载单篇文章
   BATCH_WEB, // 微信接口批量下载
-  BATCH_DB // 数据库批量下载
+  BATCH_DB, // 数据库批量下载
+  BATCH_SELECT // 批量选择下载
 }
 /*
  * 业务方法类
@@ -683,22 +685,35 @@ class Service {
   /*
    * 将数据库的json对象转为ArticleInfo
    */
-  public dbObjToArticle(dbObj): ArticleInfo {
+  public dbObjToArticle(dbObj, downloadOption: DownloadOption): ArticleInfo {
     const article = new ArticleInfo(dbObj['title'], dbObj['create_time'], dbObj['content_url']);
     article.author = dbObj['author'];
     article.html = dbObj['content'];
+    if (1 == downloadOption.dlComment) article.commentList = JSON.parse(dbObj['comm']);
+    if (1 == downloadOption.dlCommentReply) article.replyDetailMap = JSON.parse(dbObj['comm_reply']);
     return article;
   }
   /*
    * 获取html源码中的comment_id
    */
+  commentIdRegex = /var comment_id = "(.*)" \|\| "(.*)" \* 1;/;
   public matchCommentId(html: string): string {
-    const regex = /var comment_id = "(.*)" \|\| "(.*)" \* 1;/;
-    const match = regex.exec(html);
+    const match = this.commentIdRegex.exec(html);
     if (match) {
       return match[1];
     }
     return '';
+  }
+  /*
+   * 获取html源码中的时间戳
+   */
+  createTimeRegex = /var create_time = "(\d*)" \* 1;/;
+  public matchCreateTime(html: string): Date | undefined {
+    const match = this.createTimeRegex.exec(html);
+    if (match) {
+      return new Date(Number(match[1]) * 1000);
+    }
+    return undefined;
   }
 }
 
