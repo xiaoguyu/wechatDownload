@@ -73,8 +73,14 @@ port.addListener('close', () => {
 });
 
 async function axiosDlOne(articleInfo: ArticleInfo) {
+  const gzhInfo = articleInfo.gzhInfo;
   await axios
-    .get(articleInfo.contentUrl)
+    .get(articleInfo.contentUrl, {
+      params: {
+        key: gzhInfo ? gzhInfo.key : '',
+        uin: gzhInfo ? gzhInfo.uin : ''
+      }
+    })
     .then((response) => {
       if (response.status != 200) {
         logger.error(`获取页面数据失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
@@ -87,98 +93,6 @@ async function axiosDlOne(articleInfo: ArticleInfo) {
       logger.error('获取页面数据失败', error);
     });
   if (!articleInfo.html) return;
-  const gzhInfo = articleInfo.gzhInfo;
-  // 判断是否需要下载评论
-  if (1 == downloadOption.dlComment && gzhInfo) {
-    const commentId = service.matchCommentId(articleInfo.html);
-    if (!commentId) {
-      logger.error('获取精选评论参数失败');
-      resp(NwrEnum.FAIL, '获取精选评论参数失败');
-    } else if (commentId == '0') {
-      logger.info('此文章没有评论');
-      resp(NwrEnum.FAIL, '此文章没有评论');
-    } else {
-      const headers = {
-        Host: gzhInfo.Host,
-        Connection: 'keep-alive',
-        'User-Agent': gzhInfo.UserAgent,
-        Cookie: gzhInfo.Cookie,
-        Referer: articleInfo.contentUrl
-      };
-      // 评论列表
-      let commentList;
-      // 评论回复map
-      const replyDetailMap = new Map();
-      await axios
-        .get(COMMENT_LIST_URL, {
-          params: {
-            __biz: gzhInfo.biz,
-            key: gzhInfo.key,
-            uin: gzhInfo.uin,
-            comment_id: commentId
-          },
-          headers: headers
-        })
-        .then((response) => {
-          if (response.status != 200) {
-            logger.error(`获取精选评论失败，状态码：${response.status}`, articleInfo.contentUrl);
-            resp(NwrEnum.FAIL, `获取精选评论失败，状态码：${response.status}`);
-            return;
-          }
-          const resData = response.data;
-          if (resData.base_resp.errmsg != 'ok') {
-            logger.error(`获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
-            resp(NwrEnum.FAIL, `获取精选评论失败：${resData.base_resp.errmsg}`);
-            return;
-          }
-          commentList = resData.elected_comment;
-          logger.debug('精选评论', commentList);
-        })
-        .catch((error) => {
-          logger.error('获取精选评论失败', error, articleInfo.contentUrl);
-        });
-
-      // 处理评论的回复
-      if (1 == downloadOption.dlCommentReply && commentList) {
-        for (const commentItem of commentList) {
-          const replyInfo = commentItem.reply_new;
-          if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
-            await axios
-              .get(COMMENT_REPLY_URL, {
-                params: {
-                  __biz: gzhInfo.biz,
-                  key: gzhInfo.key,
-                  uin: gzhInfo.uin,
-                  comment_id: commentId,
-                  content_id: commentItem.content_id,
-                  max_reply_id: replyInfo.max_reply_id
-                },
-                headers: headers
-              })
-              .then((response) => {
-                if (response.status != 200) {
-                  logger.error(`获取评论回复失败，状态码：${response.status}`);
-                  resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
-                  return;
-                }
-                const resData = response.data;
-                if (resData.base_resp.errmsg != 'ok') {
-                  logger.error(`获取评论回复失败`, resData.base_resp);
-                  resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
-                  return;
-                }
-                replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;
-              })
-              .catch((error) => {
-                logger.error('获取评论回复失败', error);
-              });
-          }
-        }
-      }
-      articleInfo.commentList = commentList;
-      articleInfo.replyDetailMap = replyDetailMap;
-    }
-  }
   await dlOne(articleInfo);
 }
 
@@ -201,6 +115,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   if (!articleInfo.title) articleInfo.title = article.title;
   if (!articleInfo.author) articleInfo.author = article.byline;
   if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime(htmlStr);
+
+  // 下载评论
+  await downloadComment(articleInfo);
 
   // 创建保存文件夹和缓存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
@@ -294,6 +211,108 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     await pro;
   }
   resp(NwrEnum.SUCCESS, `【${article.title}】下载完成，共${imgCount}张图，url：${url}`);
+}
+
+/*
+ * 下载评论
+ */
+async function downloadComment(articleInfo: ArticleInfo) {
+  if (!articleInfo.html) return;
+
+  const gzhInfo = articleInfo.gzhInfo;
+  // 判断是否需要下载评论
+  if (1 != downloadOption.dlComment || !gzhInfo) {
+    return;
+  }
+
+  const commentId = service.matchCommentId(articleInfo.html);
+  if (!commentId) {
+    logger.error('获取精选评论参数失败');
+    resp(NwrEnum.FAIL, '获取精选评论参数失败');
+  } else if (commentId == '0') {
+    logger.info(`【${articleInfo.title}】没有评论`);
+    resp(NwrEnum.FAIL, `【${articleInfo.title}】没有评论`);
+  } else {
+    const headers = {
+      Host: gzhInfo.Host,
+      Connection: 'keep-alive',
+      'User-Agent': gzhInfo.UserAgent,
+      Cookie: gzhInfo.Cookie,
+      Referer: articleInfo.contentUrl
+    };
+    // 评论列表
+    let commentList;
+    // 评论回复map
+    const replyDetailMap = new Map();
+    await axios
+      .get(COMMENT_LIST_URL, {
+        params: {
+          __biz: gzhInfo.biz,
+          key: gzhInfo.key,
+          uin: gzhInfo.uin,
+          comment_id: commentId
+        },
+        headers: headers
+      })
+      .then((response) => {
+        if (response.status != 200) {
+          logger.error(`获取精选评论失败，状态码：${response.status}`, articleInfo.contentUrl);
+          resp(NwrEnum.FAIL, `获取精选评论失败，状态码：${response.status}`);
+          return;
+        }
+        const resData = response.data;
+        if (resData.base_resp.errmsg != 'ok') {
+          logger.error(`【${articleInfo.title}】获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
+          resp(NwrEnum.FAIL, `【${articleInfo.title}】获取精选评论失败：${resData.base_resp.errmsg}`);
+          return;
+        }
+        commentList = resData.elected_comment;
+        logger.debug(`【${articleInfo.title}】精选评论`, commentList);
+      })
+      .catch((error) => {
+        logger.error(`【${articleInfo.title}】获取精选评论失败`, error, articleInfo.contentUrl);
+      });
+
+    // 处理评论的回复
+    if (1 == downloadOption.dlCommentReply && commentList) {
+      for (const commentItem of commentList) {
+        const replyInfo = commentItem.reply_new;
+        if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
+          await axios
+            .get(COMMENT_REPLY_URL, {
+              params: {
+                __biz: gzhInfo.biz,
+                key: gzhInfo.key,
+                uin: gzhInfo.uin,
+                comment_id: commentId,
+                content_id: commentItem.content_id,
+                max_reply_id: replyInfo.max_reply_id
+              },
+              headers: headers
+            })
+            .then((response) => {
+              if (response.status != 200) {
+                logger.error(`获取评论回复失败，状态码：${response.status}`);
+                resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
+                return;
+              }
+              const resData = response.data;
+              if (resData.base_resp.errmsg != 'ok') {
+                logger.error(`获取评论回复失败`, resData.base_resp);
+                resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
+                return;
+              }
+              replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;
+            })
+            .catch((error) => {
+              logger.error('获取评论回复失败', error);
+            });
+        }
+      }
+    }
+    articleInfo.commentList = commentList;
+    articleInfo.replyDetailMap = replyDetailMap;
+  }
 }
 
 /*
