@@ -10,3 +10,7 @@ CREATE TABLE wx_article (
     PRIMARY KEY ( id ) USING BTREE,
     UNIQUE INDEX uni_title ( title, create_time ) USING BTREE 
 ) ;
+
+-- 2023-4-1 添加评论字段
+ALTER TABLE wx_article ADD COLUMN comm LONGTEXT NULL COMMENT '精选评论',
+ADD COLUMN comm_reply LONGTEXT NULL COMMENT '评论回复';

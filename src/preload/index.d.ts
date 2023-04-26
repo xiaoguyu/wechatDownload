@@ -13,8 +13,11 @@ declare global {
       showOpenDialog(options: OpenDialogOptions, callbackMsg: string);
       // 下载详情页数据
       downloadOne(url: string);
-      // 开启公号文章监测
+      // 开启公号文章监测（获取用户参数）
       monitorArticle();
+      // 开启公号文章监测（历史接口被封使用，获取文章地址）
+      monitorLimitArticle();
+      stopMonitorLimitArticle();
       // 测试mysql连接
       testConnect();
       // 消息弹框

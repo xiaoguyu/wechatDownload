@@ -1,6 +1,7 @@
 import { parentPort, workerData } from 'worker_threads';
+import logger from './logger';
 import { StrUtil, FileUtil, DateUtil } from './utils';
-import { GzhInfo, ArticleInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
+import { GzhInfo, ArticleInfo, PdfInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
 import md5 from 'blueimp-md5';
 import * as fs from 'fs';
@@ -18,10 +19,12 @@ const turndownService = service.createTurndownService();
 const DOWNLOAD_LIMIT = 10;
 // 获取文章列表的url
 const LIST_URL = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
+const COMMENT_LIST_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcomment&offset=0&limit=100&f=json';
+const COMMENT_REPLY_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcommentreply&offset=0&limit=100&is_first=1&f=json';
 // 插入数据库的sql
 const TABLE_NAME = workerData.tableName;
-const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
-const SELECT_SQL = `SELECT title, content, author, content_url, create_time FROM ${TABLE_NAME} WHERE create_time >= ? AND create_time <= ?`;
+const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat, comm, comm_reply) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
+const SELECT_SQL = `SELECT title, content, author, content_url, create_time, comm, comm_reply FROM ${TABLE_NAME} WHERE create_time >= ? AND create_time <= ?`;
 
 // 数据库连接配置
 const connectionConfig: mysql.ConnectionConfig = workerData.connectionConfig;
@@ -56,24 +59,40 @@ port.on('message', async () => {
   } else if (dlEvent == DlEventEnum.BATCH_DB) {
     // 从数据库批量下载
     await batchDownloadFromDb();
+  } else if (dlEvent == DlEventEnum.BATCH_SELECT) {
+    await batchDownloadFromWebSelect(workerData.data);
   }
 });
 
 port.on('close', () => {
-  console.log('on 线程关闭');
+  logger.info('on 线程关闭');
 });
 
 port.addListener('close', () => {
-  console.log('addListener 线程关闭');
+  logger.info('addListener 线程关闭');
 });
 
 async function axiosDlOne(articleInfo: ArticleInfo) {
-  const response = await axios.get(articleInfo.contentUrl);
-  if (response.status != 200) {
-    resp(NwrEnum.FAIL, `下载失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
-    return;
-  }
-  articleInfo.html = response.data;
+  const gzhInfo = articleInfo.gzhInfo;
+  await axios
+    .get(articleInfo.contentUrl, {
+      params: {
+        key: gzhInfo ? gzhInfo.key : '',
+        uin: gzhInfo ? gzhInfo.uin : ''
+      }
+    })
+    .then((response) => {
+      if (response.status != 200) {
+        logger.error(`获取页面数据失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
+        resp(NwrEnum.FAIL, `下载失败，状态码：${response.status}, URL:${articleInfo.contentUrl}`);
+        return;
+      }
+      articleInfo.html = response.data;
+    })
+    .catch((error) => {
+      logger.error('获取页面数据失败', error);
+    });
+  if (!articleInfo.html) return;
   await dlOne(articleInfo);
 }
 
@@ -95,6 +114,10 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
   if (!articleInfo.title) articleInfo.title = article.title;
   if (!articleInfo.author) articleInfo.author = article.byline;
+  if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime(htmlStr);
+
+  // 下载评论
+  await downloadComment(articleInfo);
 
   // 创建保存文件夹和缓存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
@@ -137,12 +160,12 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated' && saveToDb) {
     proArr.push(
       new Promise((resolve, _reject) => {
-        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, articleInfo.title, articleInfo.datetime];
+        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.title, articleInfo.datetime];
         CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
           if (err) {
-            console.log('mysql插入失败', err.message);
+            logger.error('mysql插入失败', err.message);
           } else {
-            console.log('mysql更新成功');
+            logger.info('mysql更新成功');
           }
           resolve();
         });
@@ -154,7 +177,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     const markdownStr = turndownService.turndown($.html());
     proArr.push(
       new Promise((resolve, _reject) => {
-        fs.writeFile(path.join(savePath, 'index.md'), markdownStr, () => {
+        // 添加评论
+        const commentStr = service.getMarkdownComment(articleInfo.commentList, articleInfo.replyDetailMap);
+        fs.writeFile(path.join(savePath, 'index.md'), markdownStr + commentStr, () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存Markdown完成`);
           resolve();
         });
@@ -163,12 +188,44 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
   // 判断是否保存html
   if (1 == downloadOption.dlHtml) {
+    const $html = cheerio.load($.html());
     // 添加样式美化
-    $('head').append(service.getArticleCss());
+    const headEle = $html('head');
+    headEle.append(service.getArticleCss());
+    // 添加评论数据
+    if (articleInfo.commentList) {
+      headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap));
+    }
+    const htmlReadabilityPage = $html('#readability-page-1');
     proArr.push(
       new Promise((resolve, _reject) => {
-        fs.writeFile(path.join(savePath, 'index.html'), $.html(), () => {
+        // 评论的div块
+        htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
+        fs.writeFile(path.join(savePath, 'index.html'), $html.html(), () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存HTML完成`);
+          resolve();
+        });
+      })
+    );
+  }
+  // 判断是否保存pdf
+  if (1 == downloadOption.dlPdf) {
+    const $pdf = cheerio.load($.html());
+    // 添加样式美化
+    const headEle = $pdf('head');
+    headEle.append(service.getArticleCss());
+    // 添加评论数据
+    if (articleInfo.commentList) {
+      headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap, true));
+    }
+    const htmlReadabilityPage = $pdf('#readability-page-1');
+    proArr.push(
+      new Promise((resolve, _reject) => {
+        // 评论的div块
+        htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
+        fs.writeFile(path.join(savePath, 'pdf.html'), $pdf.html(), () => {
+          resp(NwrEnum.SUCCESS, `【${article.title}】保存pdf的html文件完成`);
+          resp(NwrEnum.PDF, '保存pdf', new PdfInfo(article.title, savePath));
           resolve();
         });
       })
@@ -179,6 +236,108 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     await pro;
   }
   resp(NwrEnum.SUCCESS, `【${article.title}】下载完成，共${imgCount}张图，url：${url}`);
+}
+
+/*
+ * 下载评论
+ */
+async function downloadComment(articleInfo: ArticleInfo) {
+  if (!articleInfo.html) return;
+
+  const gzhInfo = articleInfo.gzhInfo;
+  // 判断是否需要下载评论
+  if (1 != downloadOption.dlComment || !gzhInfo) {
+    return;
+  }
+
+  const commentId = service.matchCommentId(articleInfo.html);
+  if (!commentId) {
+    logger.error('获取精选评论参数失败');
+    resp(NwrEnum.FAIL, '获取精选评论参数失败');
+  } else if (commentId == '0') {
+    logger.info(`【${articleInfo.title}】没有评论`);
+    resp(NwrEnum.FAIL, `【${articleInfo.title}】没有评论`);
+  } else {
+    const headers = {
+      Host: gzhInfo.Host,
+      Connection: 'keep-alive',
+      'User-Agent': gzhInfo.UserAgent,
+      Cookie: gzhInfo.Cookie,
+      Referer: articleInfo.contentUrl
+    };
+    // 评论列表
+    let commentList;
+    // 评论回复map
+    const replyDetailMap = new Map();
+    await axios
+      .get(COMMENT_LIST_URL, {
+        params: {
+          __biz: gzhInfo.biz,
+          key: gzhInfo.key,
+          uin: gzhInfo.uin,
+          comment_id: commentId
+        },
+        headers: headers
+      })
+      .then((response) => {
+        if (response.status != 200) {
+          logger.error(`获取精选评论失败，状态码：${response.status}`, articleInfo.contentUrl);
+          resp(NwrEnum.FAIL, `获取精选评论失败，状态码：${response.status}`);
+          return;
+        }
+        const resData = response.data;
+        if (resData.base_resp.errmsg != 'ok') {
+          logger.error(`【${articleInfo.title}】获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
+          resp(NwrEnum.FAIL, `【${articleInfo.title}】获取精选评论失败：${resData.base_resp.errmsg}`);
+          return;
+        }
+        commentList = resData.elected_comment;
+        logger.debug(`【${articleInfo.title}】精选评论`, commentList);
+      })
+      .catch((error) => {
+        logger.error(`【${articleInfo.title}】获取精选评论失败`, error, articleInfo.contentUrl);
+      });
+
+    // 处理评论的回复
+    if (1 == downloadOption.dlCommentReply && commentList) {
+      for (const commentItem of commentList) {
+        const replyInfo = commentItem.reply_new;
+        if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
+          await axios
+            .get(COMMENT_REPLY_URL, {
+              params: {
+                __biz: gzhInfo.biz,
+                key: gzhInfo.key,
+                uin: gzhInfo.uin,
+                comment_id: commentId,
+                content_id: commentItem.content_id,
+                max_reply_id: replyInfo.max_reply_id
+              },
+              headers: headers
+            })
+            .then((response) => {
+              if (response.status != 200) {
+                logger.error(`获取评论回复失败，状态码：${response.status}`);
+                resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
+                return;
+              }
+              const resData = response.data;
+              if (resData.base_resp.errmsg != 'ok') {
+                logger.error(`获取评论回复失败`, resData.base_resp);
+                resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
+                return;
+              }
+              replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;
+            })
+            .catch((error) => {
+              logger.error('获取评论回复失败', error);
+            });
+        }
+      }
+    }
+    articleInfo.commentList = commentList;
+    articleInfo.replyDetailMap = replyDetailMap;
+  }
 }
 
 /*
@@ -214,10 +373,7 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
           // 复制
           fs.copyFile(path.join(tmpPath, _fileName), resolveSavePath, (err) => {
             if (err) {
-              console.log(err);
-              console.log(`复制图片失败，名字：${_fileName}`);
-              console.log('tmpPath', path.resolve(tmpPath, _fileName));
-              console.log('resolveSavePath', resolveSavePath);
+              logger.error(err, `复制图片失败，名字：${_fileName}`, 'tmpPath', path.resolve(tmpPath, _fileName), 'resolveSavePath', resolveSavePath);
             }
           });
         }
@@ -258,16 +414,21 @@ async function convertAudio($, savePath: string, tmpPath: string) {
     // 歌曲id
     const mid = $ele.attr('mid');
     // QQ音乐接口获取歌曲信息
-    await axios.get(`https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info&song_mid=${mid}`).then((resp) => {
-      const dataObj = resp.data;
-      const songDesc = JSON.parse(dataObj['resp_data']);
-      const songInfo = songDesc.songlist[0];
-      const songSrc = songInfo['song_play_url_standard'];
-      if (songSrc) {
-        const fileName = `${mid}.m4a`;
-        awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
-      }
-    });
+    await axios
+      .get(`https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info&song_mid=${mid}`)
+      .then((resp) => {
+        const dataObj = resp.data;
+        const songDesc = JSON.parse(dataObj['resp_data']);
+        const songInfo = songDesc.songlist[0];
+        const songSrc = songInfo['song_play_url_standard'];
+        if (songSrc) {
+          const fileName = `${mid}.m4a`;
+          awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
+        }
+      })
+      .catch((error) => {
+        logger.error(`音频下载失败，mid:${mid}`, error);
+      });
   }
   // 处理作者录制的音频
   for (const elem of mpvoiceArr) {
@@ -350,14 +511,14 @@ async function batchDownloadFromDb() {
   const modSqlParams = [startDate, endDate];
   CONNECTION.query(SELECT_SQL, modSqlParams, async function (err, result) {
     if (err) {
-      console.log('获取数据库数据失败', err.message);
+      logger.error('获取数据库数据失败', err.message);
       resp(NwrEnum.BATCH_FINISH, '获取数据库数据失败');
     } else {
       let articleCount = 0;
       const promiseArr: Promise<void>[] = [];
       for (const dbObj of result) {
         articleCount++;
-        const articleInfo: ArticleInfo = service.dbObjToArticle(dbObj);
+        const articleInfo: ArticleInfo = service.dbObjToArticle(dbObj, downloadOption);
         promiseArr.push(dlOne(articleInfo, false));
         // 栅栏，防止一次性下载太多
         if (promiseArr.length > DOWNLOAD_LIMIT) {
@@ -395,6 +556,7 @@ async function batchDownloadFromWeb() {
   // downList中没下载完的，在这处理
   const promiseArr: Promise<void>[] = [];
   for (const article of articleArr) {
+    article.gzhInfo = GZH_INFO;
     promiseArr.push(axiosDlOne(article));
   }
   // 栅栏，等待所有文章下载完成
@@ -409,6 +571,28 @@ async function batchDownloadFromWeb() {
 
   finish();
 }
+/*
+ * 批量下载选择的文章
+ */
+async function batchDownloadFromWebSelect(articleArr: ArticleInfo[]) {
+  const exeStartTime = performance.now();
+
+  const promiseArr: Promise<void>[] = [];
+  for (const article of articleArr) {
+    promiseArr.push(axiosDlOne(article));
+  }
+  // 栅栏，等待所有文章下载完成
+  for (const articlePromise of promiseArr) {
+    await articlePromise;
+  }
+
+  const exeEndTime = performance.now();
+  const exeTime = (exeEndTime - exeStartTime) / 1000;
+
+  resp(NwrEnum.BATCH_FINISH, `批量下载完成，共${articleArr.length}篇文章，耗时${exeTime.toFixed(2)}秒`);
+
+  finish();
+}
 
 /*
  * 获取文章列表
@@ -419,23 +603,42 @@ async function batchDownloadFromWeb() {
  * articleCount：文章数量
  */
 async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, articleCount: number[]) {
-  const response = await axios.get(LIST_URL, {
-    params: {
-      __biz: GZH_INFO.biz,
-      key: GZH_INFO.key,
-      uin: GZH_INFO.uin,
-      offset: nextOffset
-    }
-  });
-  if (response.status != 200) {
-    resp(NwrEnum.FAIL, `获取文章列表失败，状态码：${response.status}`);
-    return;
-  }
+  let dataObj;
+  logger.debug('下载文章列表', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
+  await axios
+    .get(LIST_URL, {
+      params: {
+        __biz: GZH_INFO.biz,
+        key: GZH_INFO.key,
+        uin: GZH_INFO.uin,
+        pass_ticket: GZH_INFO.passTicket,
+        offset: nextOffset
+      },
+      headers: {
+        Host: GZH_INFO.Host,
+        Connection: 'keep-alive',
+        'User-Agent': GZH_INFO.UserAgent,
+        Cookie: GZH_INFO.Cookie,
+        Referer: `https://mp.weixin.qq.com/mp/profile_ext?action=home&lang=zh_CN&__biz=${GZH_INFO.biz}&uin=${GZH_INFO.uin}&key=${GZH_INFO.key}&pass_ticket=${GZH_INFO.passTicket}`
+      }
+    })
+    .then((response) => {
+      if (response.status != 200) {
+        logger.error(`获取文章列表失败，状态码：${response.status}`, GZH_INFO);
+        resp(NwrEnum.FAIL, `获取文章列表失败，状态码：${response.status}`);
+        return;
+      }
+      dataObj = response.data;
+      logger.debug('列表数据', dataObj);
+    })
+    .catch((error) => {
+      logger.error('获取文章列表失败', error, GZH_INFO);
+    });
+  if (!dataObj) return;
   const oldArticleLengh = articleArr.length;
-  const dataObj = response.data;
   const errmsg = dataObj['errmsg'];
   if ('ok' != errmsg) {
-    console.log('下载列表url', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&offset=${nextOffset}`);
+    logger.error('获取文章列表失败', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
     resp(NwrEnum.FAIL, `获取文章列表失败，错误信息：${errmsg}`);
     return;
   }
@@ -505,10 +708,10 @@ async function createMysqlConnection(): Promise<mysql.Connection> {
       CONNECTION.query(sql, (err) => {
         if (err) {
           resp(NwrEnum.FAIL, 'mysql连接失败');
-          console.log('mysql连接失败', err);
+          logger.error('mysql连接失败', err);
         } else {
           resp(NwrEnum.SUCCESS, 'mysql连接成功');
-          console.log('连接成功');
+          logger.info('连接成功');
         }
         resolve(CONNECTION);
       });

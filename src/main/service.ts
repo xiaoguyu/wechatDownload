@@ -1,4 +1,5 @@
 import { StrUtil } from './utils';
+import logger from './logger';
 import * as path from 'path';
 import * as AnyProxy from 'anyproxy';
 
@@ -9,6 +10,10 @@ class GzhInfo {
   public biz: string;
   public key: string;
   public uin: string;
+  public passTicket?: string | null;
+  public Host?: string | null;
+  public Cookie?: string | null;
+  public UserAgent?: string | null;
 
   constructor(biz, key, uin) {
     this.biz = biz;
@@ -28,7 +33,12 @@ class ArticleInfo {
   public html?: string;
   // 作者
   public author?: string;
+  // 评论列表数据
+  public commentList?: [];
+  // 评论详细数据
+  public replyDetailMap?: Map<unknown, unknown>;
   public copyrightStat?: number;
+  public gzhInfo?: GzhInfo;
 
   constructor(title, datetime, contentUrl) {
     this.title = title;
@@ -46,6 +56,8 @@ class DownloadOption {
   public dlHtml?: number;
   // 下载为markdown
   public dlMarkdown?: number;
+  // 下载为pdf
+  public dlPdf?: number;
   // 保存至mysql
   public dlMysql?: number;
   // 下载音频到本地
@@ -56,6 +68,10 @@ class DownloadOption {
   public skinExist?: number;
   // 是否添加原文链接
   public sourceUrl?: number;
+  // 是否下载评论
+  public dlComment?: number;
+  // 是否下载回复
+  public dlCommentReply?: number;
   // 下载范围
   public dlScpoe?: string;
   // 下载开始时间
@@ -88,19 +104,33 @@ class NodeWorkerResponse {
     this.data = data;
   }
 }
+// PDF信息类
+class PdfInfo {
+  // 标题
+  public title: string;
+  // 保存路径
+  public savePath: string;
+
+  constructor(title: string, savePath: string) {
+    this.title = title;
+    this.savePath = savePath;
+  }
+}
 // NodeWorkerResponse的code枚举类
 enum NwrEnum {
   SUCCESS, // 成功，输出日志
   FAIL, // 失败，输出日志并失败处理
   ONE_FINISH, // 单个下载结束，输出日志并做结束处理
   BATCH_FINISH, // 多个下载结束，输出日志并做结束处理
-  CLOSE // 结束线程
+  CLOSE, // 结束线程
+  PDF // 创建pdf
 }
 // 下载事件枚举类
 enum DlEventEnum {
   ONE, // 下载单篇文章
   BATCH_WEB, // 微信接口批量下载
-  BATCH_DB // 数据库批量下载
+  BATCH_DB, // 数据库批量下载
+  BATCH_SELECT // 批量选择下载
 }
 /*
  * 业务方法类
@@ -267,8 +297,306 @@ class Service {
           padding-top: 8px;
           padding-right: 1.33333333em;
       }
+      .foot {
+        background-color: #ededed;
+        padding: 8px;
+        display: none
+      }
+      .comment {
+        max-width: 677px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .comment .desc {
+        margin-bottom: 10px;
+      }
+      .comment-item {
+        display: flex;
+        margin-bottom: 20px;
+      }
+      .comment-item img {
+        width: 30px;
+        margin-right: 8px;
+      }
+      .comment-item .nick-name {
+        color: #695e5ee3;
+        margin-right: 8px;
+        font-size: 14px;
+      }
+      .comment-item .native-place {
+        color: #9e9e9ed1;
+        font-size: 14px;
+      }
+      .comment-item .content {
+        padding-top: 5px;
+        white-space: pre-line;
+      }
+      .comment-item .more-reply {
+        margin-top: 10px;
+        color: #9e9e9ed1;
+      }
+      .comment-item .reply {
+        display: flex;
+        margin-top: 10px;
+      }
+      .comment-item .reply img {
+        width: 20px;
+        margin-right: 8px;
+      }
+      .dialog {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: rgba(0, 0, 0, 0.4);
+      }
+      .dialog .dcontent {
+        width: 600px;
+        height: 90%;
+        margin: 2% auto auto auto;
+        background-color: #fefefe;
+        border-radius: 5px;
+        position: relative;
+        overflow: hidden;
+        padding-top: 35px;
+      }
+      .dialog .aclose {
+        text-align: left;
+        line-height: 25px;
+        padding: 5px 10px 0px 10px;
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        background-color: #ffffff;
+      }
+      .dialog .aclose span {
+        font-size: 14px;
+        color: #9e9e9ed1;
+      }
+      .dialog .close {
+        color: #898686;
+        float: right;
+        font-size: 30px;
+        text-decoration: none;
+      }
+      .dialog .contain {
+        height: 100%;
+        overflow: auto;
+        display: flex;
+        flex-flow: column;
+        border-radius: 5px;
+      }
+      .dialog .d-top {
+        padding: 0 20px;
+      }
+      .dialog .all-deply {
+        background-color: #f7f7f7;
+        padding: 10px 20px 0 20px;
+        height: 100%;
+      }
+      .dialog .all-deply .a-desc {
+        color: #898686;
+        margin-bottom: 10px;
+      }
+      .reply-nick {
+        color: #898686;
+        margin: 0 3px;
+      }
       </style>
     `;
+  }
+  /*
+   * 处理评论的js
+   */
+  public getHtmlComment(commentList, replyDetailMap, showAllComment = false): string {
+    return `
+    <script type="text/javascript">
+      const electedCommentArr = ${JSON.stringify(commentList)}
+      const electedCommentDetailMap = ${JSON.stringify(replyDetailMap)}
+
+      window.onload = function () {
+        var innerStr = \`<div class="comment">
+          <div class="desc">精选留言</div>\`
+        
+        for (const electedComment of electedCommentArr) {
+          var contentId = electedComment['content_id']
+          var logoUrl = electedComment['logo_url']
+          var nickName = electedComment['nick_name']
+          var provinceName = getPlaceName(electedComment)
+          var content = electedComment['content']
+
+          var replyList = electedComment['reply_new']['reply_list']
+          var replyList = ${showAllComment ? "electedCommentDetailMap[contentId] || electedComment['reply_new']['reply_list']" : "electedComment['reply_new']['reply_list']"}
+          var replyTotalCnt = electedComment['reply_new']['reply_total_cnt']
+
+          var moreStr = ""
+          if (replyTotalCnt > replyList.length) {
+            moreStr = \`<div class="more-reply" onclick="showDetail('\${contentId}')">
+                \${replyTotalCnt}条回复&gt;
+              </div>\`
+          }
+
+          var replyStr = ''
+          for (const replyItem of replyList) {
+            var replyLogoUrl = replyItem['logo_url']
+            var replyNickName = replyItem['nick_name']
+            if (replyItem['is_from'] == 2) {
+              replyNickName += '(作者)'
+            }
+            let replyToNickName = replyItem['to_nick_name']
+            let toNickNameStr = replyToNickName ? \`回复<span class="reply-nick">\${replyToNickName}</span>：\` : ''
+            var replyProvinceName = getPlaceName(replyItem)
+            var replyContent = replyItem['content']
+            replyStr += \`<div class="reply">
+                <div>
+                  <img src="\${replyLogoUrl}">
+                </div>
+                <div class="right-div">
+                  <span class="nick-name">\${replyNickName}</span><span class="native-place">\${replyProvinceName ? "来自" + replyProvinceName : ""}</span>
+                  <div class="content">\${toNickNameStr + replyContent}</div>
+                </div>
+              </div>\`
+          }
+          
+          var itemStr = \`<div class="comment-item">
+            <div>
+              <img src="\${logoUrl}">
+            </div>
+            <div class="right-div">
+              <span class="nick-name">\${nickName}</span><span class="native-place">\${provinceName ? "来自" + provinceName : ""}</span>
+              <div class="content">\${content}</div>
+              \${moreStr}
+              \${replyStr}
+            </div>
+          </div>\`
+
+          innerStr += itemStr
+        }
+        
+
+        innerStr += \`</div></div>\`
+        var footEle = document.querySelector(".foot");
+        footEle.innerHTML = innerStr
+        footEle.style.display = 'block'
+
+      }
+
+      function showDetail(contentId) {
+        let selectedComment;
+        for (const electedComment of electedCommentArr) {
+          if (electedComment['content_id'] == contentId) {
+            selectedComment = electedComment;
+            break;
+          }
+        }
+        let logoUrl = selectedComment['logo_url']
+        let nickName = selectedComment['nick_name']
+        let provinceName = getPlaceName(selectedComment)
+        let content = selectedComment['content']
+        document.querySelector(".dialog .d-top").innerHTML = \`<div class="comment-item">
+                <div>
+                  <img src="\${logoUrl}">
+                </div>
+                <div class="right-div">
+                  <span class="nick-name">\${nickName}</span><span class="native-place">\${provinceName ? "来自" + provinceName : ""}</span>
+                  <div class="content">\${content}</div>
+                </div>
+              </div>\`
+    
+        let replyArr = electedCommentDetailMap[contentId]
+        replyArr = replyArr ? replyArr : selectedComment['reply_new']['reply_list']
+        let applyHtml = '<div class="a-desc">全部回复</div>'
+        if (replyArr && replyArr.length > 0) {
+          for (const replyItem of replyArr) {
+            let replyLogoUrl = replyItem['logo_url']
+            let replyNickName = replyItem['nick_name']
+            let replyProvinceName = getPlaceName(replyItem)
+            let replyContent = replyItem['content']
+            let replyToNickName = replyItem['to_nick_name']
+            let toNickNameStr = replyToNickName ? \`回复<span class="reply-nick">\${replyToNickName}</span>：\` : ''
+            applyHtml += \`<div class="comment-item">
+                <div>
+                  <img
+                    src="\${replyLogoUrl}">
+                </div>
+                <div class="right-div">
+                  <span class="nick-name">\${replyNickName}</span><span class="native-place">\${replyProvinceName ? "来自" + replyProvinceName : ""}</span>
+                  <div class="content">\${toNickNameStr + replyContent}</div>
+                </div>
+              </div>\`
+          }
+        }
+        document.querySelector(".dialog .all-deply").innerHTML = applyHtml
+    
+        let dialogEle = document.querySelector('.dialog');
+        dialogEle.style.display = 'block'
+      }
+
+      function showDialog() {
+        let dialogEle = document.querySelector('.dialog');
+        dialogEle.style.display = 'block'
+      }
+      function closeDialog() {
+        let dialogEle = document.querySelector('.dialog');
+        dialogEle.style.display = 'none'
+      }
+      function getPlaceName(electedComment) {
+        let placeName = '';
+        if (electedComment['ip_wording']) {
+          placeName = electedComment['ip_wording']['province_name'] ? electedComment['ip_wording']['province_name'] : electedComment['ip_wording']['country_name'];
+        }
+        return placeName;
+      }
+    </script>
+    `;
+  }
+  /*
+   * markdown格式的评论内容
+   */
+  public getMarkdownComment(commentList, replyDetailMap): string {
+    let markdownStr = '';
+    if (commentList) {
+      markdownStr += '\n\n---\n\n精选留言\n\n';
+      for (const electedComment of commentList) {
+        const contentId = electedComment['content_id'];
+        const nickName = electedComment['nick_name'];
+        let provinceName = this.getPlaceName(electedComment);
+        provinceName = provinceName ? '（来自' + provinceName + '）' : '';
+        const content: string = electedComment['content'];
+        markdownStr += `\n- **${nickName}**${provinceName}\n  ${content.replaceAll('\n', '\n  ')}\n`;
+        let replyList = replyDetailMap ? replyDetailMap[contentId] : null;
+        if (!replyList) {
+          replyList = electedComment['reply_new']['reply_list'];
+        }
+        if (!replyList) {
+          continue;
+        }
+        for (const replyItem of replyList as []) {
+          let replyNickName: string = replyItem['nick_name'];
+          if (replyItem['is_from'] == 2) {
+            replyNickName += '(作者)';
+          }
+          let replyProvinceName = this.getPlaceName(electedComment);
+          replyProvinceName = replyProvinceName ? '（来自' + replyProvinceName + '）' : '';
+          const replyContent: string = replyItem['content'];
+          const replyToNickName = replyItem['to_nick_name'];
+          const toNickNameStr = replyToNickName ? `回复 ${replyToNickName} ：` : '';
+          markdownStr += `\n  - **${replyNickName}**${replyProvinceName}\n    ${toNickNameStr + replyContent.replaceAll('\n', '\n    ')}\n`;
+        }
+      }
+    }
+    return markdownStr;
+  }
+  private getPlaceName(electedComment): string {
+    let placeName = '';
+    if (electedComment['ip_wording']) {
+      placeName = electedComment['ip_wording']['province_name'] ? electedComment['ip_wording']['province_name'] : electedComment['ip_wording']['country_name'];
+    }
+    return placeName;
   }
   /*
    * 创建CA证书
@@ -279,9 +607,9 @@ class Service {
       AnyProxy.utils.certMgr.generateRootCA((error, keyPath) => {
         if (!error) {
           const certDir = path.dirname(keyPath);
-          console.log('CA证书创建成功，路径：', certDir);
+          logger.info('CA证书创建成功，路径：', certDir);
         } else {
-          console.error('CA证书创建失败', error);
+          logger.error('CA证书创建失败', error);
         }
       });
     }
@@ -375,12 +703,36 @@ class Service {
   /*
    * 将数据库的json对象转为ArticleInfo
    */
-  public dbObjToArticle(dbObj): ArticleInfo {
+  public dbObjToArticle(dbObj, downloadOption: DownloadOption): ArticleInfo {
     const article = new ArticleInfo(dbObj['title'], dbObj['create_time'], dbObj['content_url']);
     article.author = dbObj['author'];
     article.html = dbObj['content'];
+    if (1 == downloadOption.dlComment) article.commentList = JSON.parse(dbObj['comm']);
+    if (1 == downloadOption.dlCommentReply) article.replyDetailMap = JSON.parse(dbObj['comm_reply']);
     return article;
+  }
+  /*
+   * 获取html源码中的comment_id
+   */
+  commentIdRegex = /var comment_id = "(.*)" \|\| "(.*)" \* 1;/;
+  public matchCommentId(html: string): string {
+    const match = this.commentIdRegex.exec(html);
+    if (match) {
+      return match[1];
+    }
+    return '';
+  }
+  /*
+   * 获取html源码中的时间戳
+   */
+  createTimeRegex = /var create_time = "(\d*)" \* 1;/;
+  public matchCreateTime(html: string): Date | undefined {
+    const match = this.createTimeRegex.exec(html);
+    if (match) {
+      return new Date(Number(match[1]) * 1000);
+    }
+    return undefined;
   }
 }
 
-export { GzhInfo, ArticleInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };
+export { GzhInfo, ArticleInfo, PdfInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };

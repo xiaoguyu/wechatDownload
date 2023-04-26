@@ -9,6 +9,8 @@ export function init(): void {
     addDlOneEvent();
     // 添加批量下载按钮事件
     addDlBatchEvent();
+    // 添加监控下载按钮事件
+    addDldlRestrictionsBatchEvent();
     // 初始化设置中心的表单
     initSetting();
     // 添加导航菜单切换事件绑定
@@ -71,6 +73,28 @@ async function addDlBatchEvent() {
     dlBatchEle.onclick = () => {
       window.electronApi.monitorArticle();
       dlBatchEle.style.display = 'none';
+    };
+  }
+}
+
+async function addDldlRestrictionsBatchEvent() {
+  const dlBatchEle = document.getElementById('dlBatch');
+  const dlRestrictionsBatchEle = document.getElementById('dlRestrictionsBatch');
+  if (dlRestrictionsBatchEle && dlBatchEle) {
+    dlRestrictionsBatchEle.onclick = () => {
+      // 按钮选中
+      if (!dlRestrictionsBatchEle.classList.contains('b-clicked')) {
+        dlRestrictionsBatchEle.classList.add('b-clicked');
+        dlBatchEle.style.display = 'none';
+
+        window.electronApi.monitorLimitArticle();
+      } else {
+        // 按钮取消
+        dlRestrictionsBatchEle.classList.remove('b-clicked');
+        dlBatchEle.style.display = 'inline-block';
+
+        window.electronApi.stopMonitorLimitArticle();
+      }
     };
   }
 }
