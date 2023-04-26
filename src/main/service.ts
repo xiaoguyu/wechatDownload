@@ -56,6 +56,8 @@ class DownloadOption {
   public dlHtml?: number;
   // 下载为markdown
   public dlMarkdown?: number;
+  // 下载为pdf
+  public dlPdf?: number;
   // 保存至mysql
   public dlMysql?: number;
   // 下载音频到本地
@@ -102,13 +104,26 @@ class NodeWorkerResponse {
     this.data = data;
   }
 }
+// PDF信息类
+class PdfInfo {
+  // 标题
+  public title: string;
+  // 保存路径
+  public savePath: string;
+
+  constructor(title: string, savePath: string) {
+    this.title = title;
+    this.savePath = savePath;
+  }
+}
 // NodeWorkerResponse的code枚举类
 enum NwrEnum {
   SUCCESS, // 成功，输出日志
   FAIL, // 失败，输出日志并失败处理
   ONE_FINISH, // 单个下载结束，输出日志并做结束处理
   BATCH_FINISH, // 多个下载结束，输出日志并做结束处理
-  CLOSE // 结束线程
+  CLOSE, // 结束线程
+  PDF // 创建pdf
 }
 // 下载事件枚举类
 enum DlEventEnum {
@@ -387,7 +402,7 @@ class Service {
         color: #898686;
         margin-bottom: 10px;
       }
-      .dialog .all-deply .reply-nick {
+      .reply-nick {
         color: #898686;
         margin: 0 3px;
       }
@@ -397,7 +412,7 @@ class Service {
   /*
    * 处理评论的js
    */
-  public getHtmlComment(commentList, replyDetailMap): string {
+  public getHtmlComment(commentList, replyDetailMap, showAllComment = false): string {
     return `
     <script type="text/javascript">
       const electedCommentArr = ${JSON.stringify(commentList)}
@@ -415,6 +430,7 @@ class Service {
           var content = electedComment['content']
 
           var replyList = electedComment['reply_new']['reply_list']
+          var replyList = ${showAllComment ? "electedCommentDetailMap[contentId] || electedComment['reply_new']['reply_list']" : "electedComment['reply_new']['reply_list']"}
           var replyTotalCnt = electedComment['reply_new']['reply_total_cnt']
 
           var moreStr = ""
@@ -431,6 +447,8 @@ class Service {
             if (replyItem['is_from'] == 2) {
               replyNickName += '(作者)'
             }
+            let replyToNickName = replyItem['to_nick_name']
+            let toNickNameStr = replyToNickName ? \`回复<span class="reply-nick">\${replyToNickName}</span>：\` : ''
             var replyProvinceName = getPlaceName(replyItem)
             var replyContent = replyItem['content']
             replyStr += \`<div class="reply">
@@ -439,7 +457,7 @@ class Service {
                 </div>
                 <div class="right-div">
                   <span class="nick-name">\${replyNickName}</span><span class="native-place">\${replyProvinceName ? "来自" + replyProvinceName : ""}</span>
-                  <div class="content">\${replyContent}</div>
+                  <div class="content">\${toNickNameStr + replyContent}</div>
                 </div>
               </div>\`
           }
@@ -717,4 +735,4 @@ class Service {
   }
 }
 
-export { GzhInfo, ArticleInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };
+export { GzhInfo, ArticleInfo, PdfInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };

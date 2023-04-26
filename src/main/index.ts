@@ -9,8 +9,9 @@ import * as path from 'path';
 import * as os from 'os';
 import { HttpUtil } from './utils';
 import logger from './logger';
-import { GzhInfo, ArticleInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
+import { GzhInfo, ArticleInfo, PdfInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
 import creatWorker from './worker?nodeWorker';
+import * as fs from 'fs';
 
 const _AnyProxy = require('anyproxy');
 const cheerio = require('cheerio');
@@ -172,10 +173,46 @@ function createDlWorker(dlEvent: DlEventEnum, data?) {
         // 关闭线程
         worker.terminate();
         break;
+      case NwrEnum.PDF:
+        html2Pdf(nwResp.data);
     }
   });
 
   worker.postMessage('');
+}
+
+async function html2Pdf(pdfInfo: PdfInfo) {
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    width: 1000,
+    height: 800
+  });
+
+  const htmlPath = path.join(pdfInfo.savePath, 'pdf.html');
+  pdfWindow.loadFile(htmlPath);
+
+  pdfWindow.webContents.on('did-finish-load', () => {
+    pdfWindow.webContents
+      .printToPDF({})
+      .then((data) => {
+        fs.writeFile(path.join(pdfInfo.savePath, 'index.pdf'), data, (error) => {
+          pdfWindow.close();
+          fs.unlink(htmlPath, () => {});
+          if (error) {
+            logger.error(`【${pdfInfo.title}】保存PDF失败`, error);
+            outputLog(`【${pdfInfo.title}】保存PDF失败`, true);
+            return;
+          }
+          outputLog(`【${pdfInfo.title}】保存PDF完成`, true);
+        });
+      })
+      .catch((error) => {
+        pdfWindow.close();
+        fs.unlink(htmlPath, () => {});
+        logger.error(`保存PDF失败:${pdfInfo.title}`, error);
+        outputLog(`【${pdfInfo.title}】保存PDF失败`, true);
+      });
+  });
 }
 
 /*
@@ -224,6 +261,7 @@ async function monitorLimitArticle() {
   outputLog('代理开启成功，准备批量下载...');
   outputLog('请在微信打开需要下载的文章，可打开多篇文章', true);
 }
+
 async function stopMonitorLimitArticle() {
   // 关闭代理
   AnyProxy.utils.systemProxyMgr.disableGlobalProxy();

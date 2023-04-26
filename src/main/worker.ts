@@ -1,7 +1,7 @@
 import { parentPort, workerData } from 'worker_threads';
 import logger from './logger';
 import { StrUtil, FileUtil, DateUtil } from './utils';
-import { GzhInfo, ArticleInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
+import { GzhInfo, ArticleInfo, PdfInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
 import md5 from 'blueimp-md5';
 import * as fs from 'fs';
@@ -188,19 +188,44 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
   // 判断是否保存html
   if (1 == downloadOption.dlHtml) {
+    const $html = cheerio.load($.html());
     // 添加样式美化
-    const headEle = $('head');
+    const headEle = $html('head');
     headEle.append(service.getArticleCss());
     // 添加评论数据
     if (articleInfo.commentList) {
       headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap));
     }
+    const htmlReadabilityPage = $html('#readability-page-1');
     proArr.push(
       new Promise((resolve, _reject) => {
         // 评论的div块
-        readabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
-        fs.writeFile(path.join(savePath, 'index.html'), $.html(), () => {
+        htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
+        fs.writeFile(path.join(savePath, 'index.html'), $html.html(), () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存HTML完成`);
+          resolve();
+        });
+      })
+    );
+  }
+  // 判断是否保存pdf
+  if (1 == downloadOption.dlPdf) {
+    const $pdf = cheerio.load($.html());
+    // 添加样式美化
+    const headEle = $pdf('head');
+    headEle.append(service.getArticleCss());
+    // 添加评论数据
+    if (articleInfo.commentList) {
+      headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap, true));
+    }
+    const htmlReadabilityPage = $pdf('#readability-page-1');
+    proArr.push(
+      new Promise((resolve, _reject) => {
+        // 评论的div块
+        htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
+        fs.writeFile(path.join(savePath, 'pdf.html'), $pdf.html(), () => {
+          resp(NwrEnum.SUCCESS, `【${article.title}】保存pdf的html文件完成`);
+          resp(NwrEnum.PDF, '保存pdf', new PdfInfo(article.title, savePath));
           resolve();
         });
       })
