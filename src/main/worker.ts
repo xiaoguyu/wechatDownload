@@ -21,6 +21,7 @@ const DOWNLOAD_LIMIT = 10;
 const LIST_URL = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
 const COMMENT_LIST_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcomment&offset=0&limit=100&f=json';
 const COMMENT_REPLY_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcommentreply&offset=0&limit=100&is_first=1&f=json';
+const QQ_MUSIC_INFO_URL = 'https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info';
 // 插入数据库的sql
 const TABLE_NAME = workerData.tableName;
 const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat, comm, comm_reply) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
@@ -147,7 +148,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
 
   // 处理音频
-  await convertAudio($, savePath, tmpPath);
+  await convertAudio($, savePath, tmpPath, articleInfo);
 
   const readabilityPage = $('#readability-page-1');
   // 插入原文链接
@@ -393,7 +394,7 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
  * savePath: 保存文章的路径(已区分文章),例如: D://savePath//测试文章1
  * tmpPath： 缓存路径(已区分文章)，例如：D://tmpPathPath//6588aec6b658b2c941f6d51d0b1691b9
  */
-async function convertAudio($, savePath: string, tmpPath: string) {
+async function convertAudio($, savePath: string, tmpPath: string, articleInfo: ArticleInfo) {
   const musicArr = $('qqmusic');
   const mpvoiceArr = $('mpvoice');
 
@@ -405,30 +406,40 @@ async function convertAudio($, savePath: string, tmpPath: string) {
 
   const awaitArr: Promise<void>[] = [];
   // 处理QQ音乐
-  for (const elem of musicArr) {
-    const $ele = $(elem);
-    // 歌名
-    const musicName = $ele.attr('music_name');
-    // 歌手名
-    const singer = $ele.attr('singer');
-    // 歌曲id
-    const mid = $ele.attr('mid');
-    // QQ音乐接口获取歌曲信息
-    await axios
-      .get(`https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info&song_mid=${mid}`)
-      .then((resp) => {
-        const dataObj = resp.data;
-        const songDesc = JSON.parse(dataObj['resp_data']);
-        const songInfo = songDesc.songlist[0];
-        const songSrc = songInfo['song_play_url_standard'];
-        if (songSrc) {
-          const fileName = `${mid}.m4a`;
-          awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
-        }
-      })
-      .catch((error) => {
-        logger.error(`音频下载失败，mid:${mid}`, error);
-      });
+  const gzhInfo = articleInfo.gzhInfo;
+  if (gzhInfo) {
+    for (const elem of musicArr) {
+      const $ele = $(elem);
+      // 歌名
+      const musicName = $ele.attr('music_name');
+      // 歌手名
+      const singer = $ele.attr('singer');
+      // 歌曲id
+      const mid = $ele.attr('mid');
+      // QQ音乐接口获取歌曲信息
+      await axios
+        .get(QQ_MUSIC_INFO_URL, {
+          params: {
+            __biz: gzhInfo.biz,
+            key: gzhInfo.key,
+            uin: gzhInfo.uin,
+            song_mid: mid
+          }
+        })
+        .then((resp) => {
+          const dataObj = resp.data;
+          const songDesc = JSON.parse(dataObj['resp_data']);
+          const songInfo = songDesc.songlist[0];
+          const songSrc = songInfo['song_play_url_standard'];
+          if (songSrc) {
+            const fileName = `${mid}.m4a`;
+            awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
+          }
+        })
+        .catch((error) => {
+          logger.error(`音频下载失败，mid:${mid}`, error);
+        });
+    }
   }
   // 处理作者录制的音频
   for (const elem of mpvoiceArr) {
@@ -673,6 +684,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     for (let i = 0; i < DOWNLOAD_LIMIT; i++) {
       const article = articleArr.shift();
       if (article) {
+        article.gzhInfo = GZH_INFO;
         promiseArr.push(axiosDlOne(article));
       }
     }
