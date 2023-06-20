@@ -286,9 +286,9 @@ async function downloadComment(articleInfo: ArticleInfo) {
           return;
         }
         const resData = response.data;
-        if (resData.base_resp.errmsg != 'ok') {
-          logger.error(`【${articleInfo.title}】获取精选评论失败`, resData.base_resp, articleInfo.contentUrl);
-          resp(NwrEnum.FAIL, `【${articleInfo.title}】获取精选评论失败：${resData.base_resp.errmsg}`);
+        if (resData.base_resp.ret != 0) {
+          logger.error(`【${articleInfo.title}】获取精选评论失败`, resData, response.config.url, response.config.params);
+          resp(NwrEnum.FAIL, `【${articleInfo.title}】获取精选评论失败：${resData.errmsg}`);
           return;
         }
         commentList = resData.elected_comment;
@@ -317,14 +317,14 @@ async function downloadComment(articleInfo: ArticleInfo) {
             })
             .then((response) => {
               if (response.status != 200) {
-                logger.error(`获取评论回复失败，状态码：${response.status}`);
+                logger.error(`获取评论回复失败，状态码：${response.status}`, response.config.url, response.config.params);
                 resp(NwrEnum.FAIL, `获取评论回复失败，状态码：${response.status}`);
                 return;
               }
               const resData = response.data;
-              if (resData.base_resp.errmsg != 'ok') {
-                logger.error(`获取评论回复失败`, resData.base_resp);
-                resp(NwrEnum.FAIL, `获取评论回复失败：${resData.base_resp.errmsg}`);
+              if (resData.base_resp.ret != 0) {
+                logger.error(`获取评论回复失败`, resData, response.config.url, response.config.params);
+                resp(NwrEnum.FAIL, `获取评论回复失败：${resData.errmsg}`);
                 return;
               }
               replyDetailMap[commentItem.content_id] = resData.reply_list.reply_list;

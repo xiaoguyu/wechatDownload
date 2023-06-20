@@ -14,7 +14,6 @@ import creatWorker from './worker?nodeWorker';
 import * as fs from 'fs';
 
 const _AnyProxy = require('anyproxy');
-const cheerio = require('cheerio');
 const store = new Store();
 const service = new Service();
 
@@ -287,7 +286,7 @@ function createProxy(): AnyProxy.ProxyServer {
       summary: 'My Custom Rule',
       beforeSendResponse(requestDetail, responseDetail) {
         // 批量下载
-        if (DL_TYPE == DlEventEnum.BATCH_WEB && requestDetail.url.indexOf('https://mp.weixin.qq.com/s') == 0) {
+        if (DL_TYPE == DlEventEnum.BATCH_WEB && requestDetail.url.indexOf('https://mp.weixin.qq.com/mp/getbizbanner') == 0) {
           const uin = HttpUtil.getQueryVariable(requestDetail.url, 'uin');
           const biz = HttpUtil.getQueryVariable(requestDetail.url, '__biz');
           const key = HttpUtil.getQueryVariable(requestDetail.url, 'key');
@@ -303,9 +302,7 @@ function createProxy(): AnyProxy.ProxyServer {
             }
 
             logger.debug('微信公号参数', GZH_INFO);
-            const $ = cheerio.load(responseDetail.response.body);
-            const title = $('h1').text().trim();
-            outputLog(`已监测到【${title}】，请确认是否批量下载该文章所属公号`, true);
+            outputLog(`已监测到文章，请确认是否批量下载该文章所属公号`, true);
             if (!MAIN_WINDOW.focusable) {
               MAIN_WINDOW.focus();
             }
