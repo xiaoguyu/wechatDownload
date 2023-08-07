@@ -42,9 +42,9 @@ class StrUtil {
   /*
    * 获取style中的宽度
    */
+  static widthExpression = /width:\s*(\d+px)/g;
   public static getStyleWidth(styleStr): string | null {
-    const widthExpression = /width:\s*(\d+px)/g;
-    const widthResultArr = widthExpression.exec(styleStr);
+    const widthResultArr = StrUtil.widthExpression.exec(styleStr);
     if (widthResultArr && widthResultArr.length > 1) {
       return widthResultArr[1].replace('px', '');
     }
@@ -54,9 +54,17 @@ class StrUtil {
   /*
    * 将字符串转换成文件夹名字允许的格式
    */
+  static cleanDirExpression = /[\\\\/:*?"<>|\\.\\s]/g;
   public static strToDirName(title: string): string {
-    const cleanDirExpression = /[\\\\/:*?"<>|\\.\\s]/g;
-    return title.replaceAll(cleanDirExpression, '');
+    return title.replaceAll(StrUtil.cleanDirExpression, '');
+  }
+
+  /*
+   * 去除两边空白字符
+   */
+  static trimExpression = /^\s*|\s*$/g;
+  public static trim(str: string): string {
+    return str.replaceAll(StrUtil.trimExpression, '');
   }
 }
 

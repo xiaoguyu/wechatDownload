@@ -25,7 +25,7 @@ class GzhInfo {
 class ArticleInfo {
   // 标题
   public title?: string;
-  // 事件
+  // 时间
   public datetime?: Date;
   // 详情url
   public contentUrl: string;
@@ -33,6 +33,8 @@ class ArticleInfo {
   public html?: string;
   // 作者
   public author?: string;
+  // 元数据
+  public metaInfo?: ArticleMeta;
   // 评论列表数据
   public commentList?: [];
   // 评论详细数据
@@ -45,6 +47,19 @@ class ArticleInfo {
     this.datetime = datetime;
     this.contentUrl = contentUrl;
   }
+}
+// 文章元数据类
+class ArticleMeta {
+  // 原创标识
+  public copyrightFlg?: boolean;
+  // 作者
+  public author?: string;
+  // 公号名
+  public jsName?: string;
+  // 发布时间
+  public publicTime?: string;
+  // ip位置
+  public ipWording?: string;
 }
 // 配置类
 class DownloadOption {
@@ -66,6 +81,8 @@ class DownloadOption {
   public dlImg?: number;
   // 跳过现有文章
   public skinExist?: number;
+  // 是否保存元数据
+  public saveMeta?: number;
   // 是否添加原文链接
   public sourceUrl?: number;
   // 是否下载评论
@@ -406,6 +423,18 @@ class Service {
         color: #898686;
         margin: 0 3px;
       }
+      .meta-div {
+        margin-bottom: 10px;
+        color: #898686;
+      }
+      .meta-div span {
+        margin-right: 10px;
+      }
+      .meta-div .copyright-span {
+        background-color: #0000000d;
+        font-size: 14px;
+        padding: 2px;
+      }
       </style>
     `;
   }
@@ -553,6 +582,32 @@ class Service {
       }
     </script>
     `;
+  }
+  /**
+   * 获取元数据渲染的html
+   * @param articleMeta 文章元数据
+   * @returns 元数据渲染的html
+   */
+  public getMetaHtml(articleMeta?: ArticleMeta): string {
+    if (!articleMeta) {
+      return '';
+    }
+    let htmlStr = '<div class="meta-div">';
+    htmlStr += `<span class="copyright-span">${articleMeta.copyrightFlg ? '原创' : '非原创'} </span>`;
+    if (articleMeta.author) {
+      htmlStr += `<span>作者:${articleMeta.author} </span>`;
+    }
+    if (articleMeta.jsName) {
+      htmlStr += `<span>公号:${articleMeta.jsName} </span>`;
+    }
+    if (articleMeta.publicTime) {
+      htmlStr += `<span>发布时间:${articleMeta.publicTime} </span>`;
+    }
+    if (articleMeta.ipWording) {
+      htmlStr += `<span>发表于${articleMeta.ipWording} </span>`;
+    }
+    htmlStr += '</div>';
+    return htmlStr;
   }
   /*
    * markdown格式的评论内容
@@ -733,6 +788,17 @@ class Service {
     }
     return undefined;
   }
+  /**
+   * 获取html源码中的发布地址
+   */
+  ipWordingRegex = /provinceName: '([\u4e00-\u9fa5]*)'/;
+  public matchIpWording(html: string): string | undefined {
+    const match = this.ipWordingRegex.exec(html);
+    if (match) {
+      return match[1];
+    }
+    return undefined;
+  }
 }
 
-export { GzhInfo, ArticleInfo, PdfInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };
+export { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };

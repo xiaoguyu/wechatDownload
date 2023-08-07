@@ -1,7 +1,7 @@
 import { parentPort, workerData } from 'worker_threads';
 import logger from './logger';
 import { StrUtil, FileUtil, DateUtil } from './utils';
-import { GzhInfo, ArticleInfo, PdfInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
+import { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
 import md5 from 'blueimp-md5';
 import * as fs from 'fs';
@@ -117,6 +117,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   if (!articleInfo.author) articleInfo.author = article.byline;
   if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime(htmlStr);
 
+  // 提取元数据
+  parseMeta(articleInfo, htmlStr, article.byline);
+
   // 下载评论
   await downloadComment(articleInfo);
 
@@ -153,6 +156,8 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   const readabilityPage = $('#readability-page-1');
   // 插入原文链接
   readabilityPage.prepend(`<div>原文地址：<a href='${url}' target='_blank'>${article.title}</a></div>`);
+  // 插入元数据
+  readabilityPage.prepend(service.getMetaHtml(articleInfo.metaInfo));
   // 插入标题
   readabilityPage.prepend(`<h1>${article.title}</h1>`);
 
@@ -237,6 +242,32 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     await pro;
   }
   resp(NwrEnum.SUCCESS, `【${article.title}】下载完成，共${imgCount}张图，url：${url}`);
+}
+
+/**
+ * 解析元数据
+ * @param articleInfo 文章信息
+ * @param htmlStr 微信文章网页源码
+ * @param byline Readability解析出来的作者名
+ */
+function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
+  // 判断是否需要下载评论
+  if (1 != downloadOption.saveMeta) {
+    return;
+  }
+  const $meta = cheerio.load(htmlStr);
+  const authorName = $meta('#js_author_name')?.text();
+  const jsName = StrUtil.trim($meta('#js_name')?.text());
+  const copyrightFlg = $meta('#copyright_logo')?.text() ? true : false;
+  const publicTime = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd HH:mm') : '';
+  const ipWording = service.matchIpWording(htmlStr);
+  const articleMeta = new ArticleMeta();
+  articleMeta.copyrightFlg = copyrightFlg;
+  articleMeta.author = authorName ? authorName : byline;
+  articleMeta.jsName = jsName;
+  articleMeta.publicTime = publicTime;
+  articleMeta.ipWording = ipWording;
+  articleInfo.metaInfo = articleMeta;
 }
 
 /*
