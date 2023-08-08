@@ -155,7 +155,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
   const readabilityPage = $('#readability-page-1');
   // 插入原文链接
-  readabilityPage.prepend(`<div>原文地址：<a href='${url}' target='_blank'>${article.title}</a></div>`);
+  if (1 == downloadOption.sourceUrl) {
+    readabilityPage.prepend(`<div>原文地址：<a href='${url}' target='_blank'>${article.title}</a></div>`);
+  }
   // 插入元数据
   readabilityPage.prepend(service.getMetaHtml(articleInfo.metaInfo));
   // 插入标题
