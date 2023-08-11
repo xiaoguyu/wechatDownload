@@ -45,11 +45,21 @@ contextBridge.exposeInMainWorld('electronApi', {
     }
     // Other method you want to add like has(), reset(), etc.
   },
+  // 加载初始化数据
+  loadInitInfo() {
+    return ipcRenderer.sendSync('load-init-info');
+  },
+  // 检查更新
+  checkForUpdate: () => ipcRenderer.send('check-for-update'),
   /*** main->render ***/
   // 用于打开文件夹之后接收打开的路径
   openDialogCallback: (callback) => ipcRenderer.on('open-dialog-callback', callback),
   // 输出日志
   outputLog: (callback) => ipcRenderer.on('output-log', callback),
   // 下载完成
-  downloadFnish: (callback) => ipcRenderer.on('download-fnish', callback)
+  downloadFnish: (callback) => ipcRenderer.on('download-fnish', callback),
+  // 发送更新信息
+  updateMsg: (callback) => ipcRenderer.on('update-msg', callback),
+  // 发送下载进度
+  downloadProgress: (callback) => ipcRenderer.on('download-progress', callback)
 });

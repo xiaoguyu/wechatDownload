@@ -17,6 +17,16 @@ const _AnyProxy = require('anyproxy');
 const store = new Store();
 const service = new Service();
 
+import { NsisUpdater } from 'electron-updater';
+import { GithubOptions } from 'builder-util-runtime';
+const options: GithubOptions = {
+  provider: 'github',
+  owner: 'xiaoguyu',
+  repo: 'wechatDownload'
+};
+
+const autoUpdater = new NsisUpdater(options);
+
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
 let MAIN_WINDOW: BrowserWindow;
@@ -116,6 +126,16 @@ app.whenReady().then(() => {
   ipcMain.on('stop-monitor-limit-article', () => stopMonitorLimitArticle());
   // 测试数据库连接
   ipcMain.on('test-connect', async () => testMysqlConnection());
+  // 检查更新
+  ipcMain.on('check-for-update', () => {
+    logger.info('触发检查更新');
+    autoUpdater.checkForUpdates();
+  });
+  // 返回初始化页面需要的信息
+  ipcMain.on('load-init-info', (event) => {
+    // 暂时只需要版本号
+    event.returnValue = app.getVersion();
+  });
 
   createWindow();
 
@@ -488,3 +508,81 @@ function loadWorkerData(dlEvent: DlEventEnum, data?) {
     data: data
   };
 }
+
+/*******************以下是自动更新相关************************/
+
+// 这里是为了在本地做应用升级测试使用
+if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  autoUpdater.updateConfigPath = path.join(__dirname, '../../dev-app-update.yml');
+}
+Object.defineProperty(app, 'isPackaged', {
+  get() {
+    return true;
+  }
+});
+
+// 定义返回给渲染层的相关提示文案
+const updateMessage = {
+  error: { code: 1, msg: '检查更新出错' },
+  checking: { code: 2, msg: '正在检查更新……' },
+  updateAva: { code: 3, msg: '检测到新版本，正在下载……' },
+  updateNotAva: { code: 4, msg: '现在使用的就是最新版本，不用更新' }
+};
+
+function sendUpdateMessage(msg: any) {
+  MAIN_WINDOW.webContents.send('update-msg', msg);
+}
+
+// 设置自动下载为false，也就是说不开始自动下载
+autoUpdater.autoDownload = false;
+// 检测下载错误
+autoUpdater.on('error', (error) => {
+  logger.error('更新异常', error);
+  sendUpdateMessage(updateMessage.error);
+});
+
+// 检测是否需要更新
+autoUpdater.on('checking-for-update', () => {
+  logger.info(updateMessage.checking);
+  sendUpdateMessage(updateMessage.checking);
+});
+// 检测到可以更新时
+autoUpdater.on('update-available', () => {
+  // 这里我们可以做一个提示，让用户自己选择是否进行更新
+  dialog
+    .showMessageBox({
+      type: 'info',
+      title: '应用有新的更新',
+      message: '发现新版本，是否现在更新？',
+      buttons: ['否', '是']
+    })
+    .then(({ response }) => {
+      if (response === 1) {
+        sendUpdateMessage(updateMessage.updateAva);
+        // 下载更新
+        autoUpdater.downloadUpdate();
+      }
+    });
+});
+// 检测到不需要更新时
+autoUpdater.on('update-not-available', () => {
+  logger.info(updateMessage.updateNotAva);
+  sendUpdateMessage(updateMessage.updateNotAva);
+});
+// 更新下载进度
+autoUpdater.on('download-progress', (progress) => {
+  MAIN_WINDOW.webContents.send('download-progress', progress);
+});
+// 当需要更新的内容下载完成后
+autoUpdater.on('update-downloaded', () => {
+  logger.info('下载完成，准备更新');
+  dialog
+    .showMessageBox({
+      title: '安装更新',
+      message: '更新下载完毕，应用将重启并进行安装'
+    })
+    .then(() => {
+      // 退出并安装应用
+      setImmediate(() => autoUpdater.quitAndInstall());
+    });
+});

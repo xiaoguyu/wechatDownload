@@ -19,6 +19,8 @@ export function init(): void {
     addSettingEvent();
     // 打开证书路径事件绑定
     addOpenLicenceEvent();
+    // 检查更新事件绑定
+    addCheckUpdateEvent();
     // 选择保存路径
     addChoseSavePathEvent();
     // 选择缓存路径
@@ -27,6 +29,8 @@ export function init(): void {
     addTestConnectEvent();
     // main -> render的事件
     addCallbackEvent();
+    // 加载初始化数据
+    initInfo();
   });
 }
 /*
@@ -234,6 +238,17 @@ async function addOpenLicenceEvent() {
   }
 }
 /*
+ * 打开证书路径事件
+ */
+async function addCheckUpdateEvent() {
+  const checkUpdateButton = document.getElementById('check-update');
+  if (checkUpdateButton) {
+    checkUpdateButton.onclick = () => {
+      window.electronApi.checkForUpdate();
+    };
+  }
+}
+/*
  * 选择保存路径事件
  */
 async function addChoseSavePathEvent() {
@@ -288,6 +303,46 @@ async function addCallbackEvent() {
       dlBatchEle.style.display = 'inline-block';
     }
   });
+  // 接收更新信息
+  window.electronApi.updateMsg(async (_event, msgObj: any) => {
+    const updateMsgDivEle = document.getElementById('update-msg-div');
+    if (!updateMsgDivEle) {
+      return;
+    }
+    if (msgObj.code == 3) {
+      updateMsgDivEle.style.display = 'none';
+      const progressDivEle = document.getElementById('progress-div');
+      if (progressDivEle) {
+        progressDivEle.style.display = 'flex';
+      }
+    } else {
+      updateMsgDivEle.innerText = msgObj.msg;
+    }
+  });
+  // 接收下载进度
+  const numM = 1048576;
+  window.electronApi.downloadProgress(async (_event, progressObj: any) => {
+    const progressEle = <HTMLProgressElement>document.getElementById('update-progress');
+    if (progressEle) {
+      progressEle.value = progressObj.percent;
+    }
+    const transferredEle = <HTMLProgressElement>document.getElementById('transferred-span');
+    if (transferredEle) {
+      const totalM = (progressObj.total / numM).toFixed(2);
+      const transferredM = (progressObj.transferred / numM).toFixed(2);
+      transferredEle.innerText = `${transferredM}/${totalM}M`;
+    }
+  });
+}
+/*
+ * 加载初始化数据
+ */
+async function initInfo() {
+  const versionStr: string = window.electronApi.loadInitInfo();
+  const versionSpanEle = document.getElementById('version-span');
+  if (versionSpanEle) {
+    versionSpanEle.innerText = versionStr;
+  }
 }
 /*
  * 添加测试mysql连接事件

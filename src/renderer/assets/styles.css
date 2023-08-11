@@ -212,3 +212,26 @@ body {
 .setting-contain .foot .item button {
   margin: 0px 15px;
 }
+
+.update-div {
+  margin-top: 10px;
+}
+
+.update-div div {
+  margin-bottom: 5px;
+}
+
+.update-div .progress-div {
+  display: flex;
+  display: none;
+}
+
+.update-div .transferred {
+  min-width: 90px;
+  margin-left: 10px;
+}
+
+.update-div progress {
+  width: 100%;
+  height: 20px;
+}

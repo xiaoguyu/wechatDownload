@@ -28,6 +28,10 @@ declare global {
         set: (key: string, val: any) => void;
         // any other methods you've defined...
       };
+      // 加载初始化数据
+      loadInitInfo: () => string;
+      // 检查更新
+      checkForUpdate();
 
       /*** main->render ***/
       // 用于打开文件夹之后接收打开的路径
@@ -41,6 +45,15 @@ declare global {
       outputLog(callback: (event: IpcRendererEvent, msg: string, flgAppend = false, flgHtml = false) => void);
       // 下载完成后做的处理
       downloadFnish(callback: (event: IpcRendererEvent) => void);
+      /*
+       * 发送更新信息
+       * msg：输出的消息
+       */
+      updateMsg(callback: (event: IpcRendererEvent, msg: any) => void);
+      /*
+       * 发送下载进度
+       */
+      downloadProgress(callback: (event: IpcRendererEvent, msg: any) => void);
     };
   }
 }

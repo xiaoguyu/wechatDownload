@@ -1,0 +1,11 @@
+version: 1.3.0
+files:
+  - url: wechatDownload-Setup-1.3.0.exe
+    sha512: 9wuFd/Vhsq9irgaGR5iDrGA6NQwGtyXo0F/3FxmaqcUGw6cR505MylVTa2M9iTFAUETAtVMRBfAVAgWP4POaUQ==
+    size: 77122997
+path: wechatDownload-Setup-1.3.0.exe
+sha512: 9wuFd/Vhsq9irgaGR5iDrGA6NQwGtyXo0F/3FxmaqcUGw6cR505MylVTa2M9iTFAUETAtVMRBfAVAgWP4POaUQ==
+releaseDate: '2023-08-11T09:44:38.105Z'
+provider: github
+owner: xiaoguyu
+repo: wechatDownload
