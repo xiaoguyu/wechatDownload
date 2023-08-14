@@ -42,3 +42,6 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+releaseInfo:
+  releaseNotes: |
+   新增更新日志

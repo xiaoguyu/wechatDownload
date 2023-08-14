@@ -17,7 +17,7 @@ const _AnyProxy = require('anyproxy');
 const store = new Store();
 const service = new Service();
 
-import { NsisUpdater } from 'electron-updater';
+import { NsisUpdater, UpdateInfo } from 'electron-updater';
 import { GithubOptions } from 'builder-util-runtime';
 const options: GithubOptions = {
   provider: 'github',
@@ -446,22 +446,30 @@ function setDefaultSetting() {
     firstRun: false,
     // 下载来源
     dlSource: 'web',
+    // 下载为html
+    dlHtml: 1,
     // 下载为markdown
     dlMarkdown: 1,
+    // 下载为pdf
+    dlPdf: 0,
+    // 保存至mysql
+    dlMysql: 0,
     // 下载音频到本地
     dlAudio: 0,
     // 下载图片到本地
     dlImg: 0,
     // 跳过现有文章
     skinExist: 1,
+    // 是否保存元数据
+    saveMeta: 1,
     // 添加原文链接
     sourceUrl: 1,
     // 是否下载评论
     dlComment: 0,
     // 是否下载评论回复
     dlCommentReply: 0,
-    // 下载范围-全部
-    dlScpoe: 'all',
+    // 下载范围-7天内
+    dlScpoe: 'seven',
     // 缓存目录
     tmpPath: path.join(os.tmpdir(), 'wechatDownload'),
     // 在安装目录下创建文章的保存路径
@@ -547,12 +555,25 @@ autoUpdater.on('checking-for-update', () => {
   sendUpdateMessage(updateMessage.checking);
 });
 // 检测到可以更新时
-autoUpdater.on('update-available', () => {
-  // 这里我们可以做一个提示，让用户自己选择是否进行更新
+autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
+  const releaseNotes = releaseInfo.releaseNotes;
+  let releaseContent = '';
+  if (releaseNotes) {
+    if (typeof releaseNotes === 'string') {
+      releaseContent = <string>releaseNotes;
+    } else if (releaseNotes instanceof Array) {
+      releaseNotes.forEach((releaseNote) => {
+        releaseContent += `${releaseNote}\n`;
+      });
+    }
+  } else {
+    releaseContent = '暂无更新说明';
+  }
   dialog
     .showMessageBox({
       type: 'info',
       title: '应用有新的更新',
+      detail: releaseContent,
       message: '发现新版本，是否现在更新？',
       buttons: ['否', '是']
     })
