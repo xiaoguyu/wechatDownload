@@ -42,6 +42,10 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+publish:
+  provider: github
+  owner: xiaoguyu
+  repo: wechatDownload
 releaseInfo:
   releaseNotes: |
    新增更新日志

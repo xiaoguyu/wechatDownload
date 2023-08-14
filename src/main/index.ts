@@ -17,15 +17,7 @@ const _AnyProxy = require('anyproxy');
 const store = new Store();
 const service = new Service();
 
-import { NsisUpdater, UpdateInfo } from 'electron-updater';
-import { GithubOptions } from 'builder-util-runtime';
-const options: GithubOptions = {
-  provider: 'github',
-  owner: 'xiaoguyu',
-  repo: 'wechatDownload'
-};
-
-const autoUpdater = new NsisUpdater(options);
+import { autoUpdater, UpdateInfo } from 'electron-updater';
 
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
