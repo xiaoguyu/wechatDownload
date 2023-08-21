@@ -78,6 +78,10 @@ body {
   box-sizing: border-box;
 }
 
+.contain input[type='number'] {
+  width: 50px;
+}
+
 /* .main-contain {
   display: none;
 } */
@@ -146,12 +150,20 @@ body {
   margin-top: 5px;
 }
 
+input::-webkit-outer-spin-button, input::-webkit-inner-spin-button{ 
+  -webkit-appearance:none; 
+}
+
 .setting-contain .middle .left {
   width: 50%;
 }
 
 .setting-contain .middle .left .div-border {
   margin-right: 8px;
+}
+
+.setting-contain .thread-div .batch-limit {
+  margin-left: 10px;
 }
 
 .setting-contain .middle .left .multi  {

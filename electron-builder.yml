@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   新增更新日志
+   新增线程配置

@@ -22,7 +22,7 @@ Electron + Typescript
 
 ![image-20230112181356841](https://img.javaedit.com/images/2023/08/14/2512825f1bd1d18026a9afb921a66e1d.png)
 
-![image-20230117115453694](https://img.javaedit.com/images/2023/08/14/7e373d996416fa3ab4a40230a5c4d8a8.png)
+![image-20230821104149231](https://img.javaedit.com/images/2023/08/21/e41d425b63373a86dbdfcff7edb8e309.png)
 
 - 单篇文章下载
 
@@ -53,6 +53,12 @@ Electron + Typescript
 - 保存至 MySql
 
   需要执行 /doc/mysql.sql 文件中的 SQL 语句创建表
+  
+- 线程配置
+
+  时间间隔：单位是毫秒，假设时间间隔500，单线程是下载完一篇文章，等待500毫秒再继续下载。多线程就是每500毫秒异步下载文章，无需等待上一篇文章下载完成。
+
+  单批数量：假设单批数量10，每次会同时异步下载10篇文章，等待这10篇下载完成，再继续下载10篇。
 
 ### 功能
 

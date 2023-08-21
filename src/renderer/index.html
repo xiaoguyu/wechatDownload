@@ -45,7 +45,7 @@
         <div class="middle">
           <div class="left">
             <div class="div-border">
-              下载来源<br />
+              <div>下载来源</div>
               <input type="radio" name="dlSource" value="web" />网络 <input type="radio" name="dlSource" value="db" />数据库
             </div>
             <div class="multi">
@@ -71,6 +71,25 @@
               下载范围<br />
               <input type="radio" name="dlScpoe" value="all" />全部 <input type="radio" name="dlScpoe" value="one" />今日 <input type="radio" name="dlScpoe" value="seven" />7天内 <input type="radio" name="dlScpoe" value="month" />一个月内<br />
               <input type="radio" name="dlScpoe" value="diy" />自定义 <input type="date" name="startDate" /> ~ <input type="date" name="endDate" />
+            </div>
+            <div title="不懂的建议使用默认配置,间隔:500,单批:10" class="div-border thread-div">
+              <div>线程配置</div>
+              <div>
+                <span title="下载完一篇文章再继续下载下一篇">
+                  <input type="radio" name="threadType" value="single" />单线程
+                </span>
+                <span title="批量下载">
+                  <input type="radio" name="threadType" value="multi" />多线程
+                </span>
+              </div>
+              <div>
+                <span title="单位毫秒">
+                  下载间隔：<input type="number" name="dlInterval" min="0" oninput="this.value=this.value.replace(/\D/g);" placeholder="单位毫秒" />
+                </span>
+                <span class="batch-limit">
+                  单批数量：<input type="number" name="batchLimit" min="1" oninput="this.value=this.value.replace(/\D/g);" />
+                </span>
+              </div>
             </div>
             <div class="item mysql-option div-border">
               Mysql配置<button id="test-connect">测试连接</button>

@@ -25,6 +25,8 @@ class GzhInfo {
 class ArticleInfo {
   // 标题
   public title?: string;
+  // 保存文件名（因为有些标题不一定符合文件名的格式）
+  public fileName?: string;
   // 时间
   public datetime?: Date;
   // 详情url
@@ -67,6 +69,12 @@ class DownloadOption {
   public firstRun?: boolean;
   // 下载来源
   public dlSource?: string;
+  // 线程类型
+  public threadType?: string;
+  // 下载间隔
+  public dlInterval?: number;
+  // 单批数量
+  public batchLimit?: number;
   // 下载为html
   public dlHtml?: number;
   // 下载为markdown
@@ -125,11 +133,14 @@ class NodeWorkerResponse {
 class PdfInfo {
   // 标题
   public title: string;
+  // 保存文件名（因为有些标题不一定符合文件名的格式）
+  public fileName?: string;
   // 保存路径
   public savePath: string;
 
-  constructor(title: string, savePath: string) {
+  constructor(title: string, savePath: string, fileName?: string) {
     this.title = title;
+    this.fileName = fileName;
     this.savePath = savePath;
   }
 }

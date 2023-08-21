@@ -72,7 +72,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // CA证书处理
   service.createCAFile();
-  if (store.get('firstRun') === undefined) setDefaultSetting();
+  setDefaultSetting();
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.javaedit');
@@ -206,7 +206,8 @@ async function html2Pdf(pdfInfo: PdfInfo) {
     pdfWindow.webContents
       .printToPDF({})
       .then((data) => {
-        fs.writeFile(path.join(pdfInfo.savePath, 'index.pdf'), data, (error) => {
+        const fileName = pdfInfo.fileName || 'index';
+        fs.writeFile(path.join(pdfInfo.savePath, `${fileName}.pdf`), data, (error) => {
           pdfWindow.close();
           fs.unlink(htmlPath, () => {});
           if (error) {
@@ -438,6 +439,12 @@ function setDefaultSetting() {
     firstRun: false,
     // 下载来源
     dlSource: 'web',
+    // 线程类型
+    threadType: 'multi',
+    // 下载间隔
+    dlInterval: 500,
+    // 单批数量
+    batchLimit: 10,
     // 下载为html
     dlHtml: 1,
     // 下载为markdown
@@ -470,14 +477,21 @@ function setDefaultSetting() {
     caPath: _AnyProxy.utils.certMgr.getRootDirPath(),
     // mysql配置-端口
     mysqlHost: 'localhost',
-    mysqlPort: 3306,
-    mysqlUser: 'root',
-    mysqlPassword: 'root'
+    mysqlPort: 3306
   };
 
   for (const i in default_setting) {
-    store.set(i, default_setting[i]);
+    sotreSetNotExit(i, default_setting[i]);
   }
+}
+
+function sotreSetNotExit(key, value): boolean {
+  const oldValue = store.get(key);
+  if (oldValue === '' || oldValue === null || oldValue === undefined) {
+    store.set(key, value);
+    return true;
+  }
+  return false;
 }
 
 /*
@@ -512,14 +526,14 @@ function loadWorkerData(dlEvent: DlEventEnum, data?) {
 /*******************以下是自动更新相关************************/
 
 // 这里是为了在本地做应用升级测试使用
-if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-  autoUpdater.updateConfigPath = path.join(__dirname, '../../dev-app-update.yml');
-}
-Object.defineProperty(app, 'isPackaged', {
-  get() {
-    return true;
-  }
-});
+// if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+//   autoUpdater.updateConfigPath = path.join(__dirname, '../../dev-app-update.yml');
+// }
+// Object.defineProperty(app, 'isPackaged', {
+//   get() {
+//     return true;
+//   }
+// });
 
 // 定义返回给渲染层的相关提示文案
 const updateMessage = {

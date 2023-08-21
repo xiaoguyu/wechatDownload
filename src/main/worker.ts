@@ -16,7 +16,7 @@ const service = new Service();
 const turndownService = service.createTurndownService();
 // 下载数量限制
 // 获取文章列表时，数量查过此限制不再继续获取列表，而是采集详情页后再继续获取列表
-const DOWNLOAD_LIMIT = 10;
+const DOWNLOAD_LIMIT = workerData.downloadOption.batchLimit ?? 10;
 // 获取文章列表的url
 const LIST_URL = 'https://mp.weixin.qq.com/mp/profile_ext?action=getmsg&f=json&count=10&is_ok=1';
 const COMMENT_LIST_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=getcomment&offset=0&limit=100&f=json';
@@ -37,6 +37,17 @@ const dlEvent: DlEventEnum = workerData.dlEvent;
 let GZH_INFO: GzhInfo;
 // 数据库连接
 let CONNECTION: mysql.Connection;
+
+// 阻塞线程的sleep函数
+function sleep(delay?: number): Promise<void> {
+  return new Promise((resolve) => {
+    if (delay && delay > 0) {
+      setTimeout(resolve, delay);
+    } else {
+      resolve();
+    }
+  });
+}
 
 const port = parentPort;
 if (!port) throw new Error('IllegalState');
@@ -126,6 +137,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 创建保存文件夹和缓存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
   const saveDirName = StrUtil.strToDirName(article.title);
+  articleInfo.fileName = saveDirName;
   const savePath = path.join(downloadOption.savePath || '', timeStr + saveDirName);
   if (!fs.existsSync(savePath)) {
     fs.mkdirSync(savePath, { recursive: true });
@@ -187,7 +199,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
       new Promise((resolve, _reject) => {
         // 添加评论
         const commentStr = service.getMarkdownComment(articleInfo.commentList, articleInfo.replyDetailMap);
-        fs.writeFile(path.join(savePath, 'index.md'), markdownStr + commentStr, () => {
+        fs.writeFile(path.join(savePath, `${articleInfo.fileName}.md`), markdownStr + commentStr, () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存Markdown完成`);
           resolve();
         });
@@ -209,7 +221,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
       new Promise((resolve, _reject) => {
         // 评论的div块
         htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
-        fs.writeFile(path.join(savePath, 'index.html'), $html.html(), () => {
+        fs.writeFile(path.join(savePath, `${articleInfo.fileName}.html`), $html.html(), () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存HTML完成`);
           resolve();
         });
@@ -233,7 +245,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
         htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
         fs.writeFile(path.join(savePath, 'pdf.html'), $pdf.html(), () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存pdf的html文件完成`);
-          resp(NwrEnum.PDF, '保存pdf', new PdfInfo(article.title, savePath));
+          resp(NwrEnum.PDF, '保存pdf', new PdfInfo(article.title, savePath, articleInfo.fileName));
           resolve();
         });
       })
@@ -602,6 +614,8 @@ async function batchDownloadFromWeb() {
   for (const article of articleArr) {
     article.gzhInfo = GZH_INFO;
     promiseArr.push(axiosDlOne(article));
+    // 下载间隔
+    await sleep(downloadOption.dlInterval);
   }
   // 栅栏，等待所有文章下载完成
   for (const articlePromise of promiseArr) {
@@ -622,8 +636,25 @@ async function batchDownloadFromWebSelect(articleArr: ArticleInfo[]) {
   const exeStartTime = performance.now();
 
   const promiseArr: Promise<void>[] = [];
-  for (const article of articleArr) {
-    promiseArr.push(axiosDlOne(article));
+  for (let i = 0; i < articleArr.length; i++) {
+    const article = articleArr[i];
+    if (i > 0) {
+      await sleep(downloadOption.dlInterval);
+    }
+    // 单线程下载
+    if (downloadOption.threadType == 'single') {
+      await axiosDlOne(article);
+    } else {
+      // 多线程下载
+      promiseArr.push(axiosDlOne(article));
+      // 栅栏，防止一次性下载太多
+      if (promiseArr.length >= DOWNLOAD_LIMIT) {
+        for (let i = 0; i < DOWNLOAD_LIMIT; i++) {
+          const p = promiseArr.shift();
+          await p;
+        }
+      }
+    }
   }
   // 栅栏，等待所有文章下载完成
   for (const articlePromise of promiseArr) {
@@ -687,6 +718,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     return;
   }
   const generalMsgList = JSON.parse(dataObj['general_msg_list']);
+  let flgContinue = true;
 
   for (const generalMsg of generalMsgList['list']) {
     const commMsgInfo = generalMsg['comm_msg_info'];
@@ -696,7 +728,8 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     // 判断，如果小于开始时间，直接退出
     if (dateTime < startDate) {
       articleCount[0] = articleCount[0] + articleArr.length - oldArticleLengh;
-      return;
+      flgContinue = false;
+      break;
     }
     // 如果大于结束时间，则不放入
     if (dateTime > endDate) continue;
@@ -711,23 +744,35 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
   }
   articleCount[0] = articleCount[0] + articleArr.length - oldArticleLengh;
   resp(NwrEnum.SUCCESS, `正在获取文章列表，目前数量：${articleCount[0]}`);
-  // 文章数量超过限制，则开始下载详情页
-  while (articleArr.length >= DOWNLOAD_LIMIT) {
-    const promiseArr: Promise<void>[] = [];
-    for (let i = 0; i < DOWNLOAD_LIMIT; i++) {
-      const article = articleArr.shift();
-      if (article) {
-        article.gzhInfo = GZH_INFO;
-        promiseArr.push(axiosDlOne(article));
-      }
+  // 单线程下载
+  if (downloadOption.threadType == 'single') {
+    for (const article of articleArr) {
+      await axiosDlOne(article);
+      // 下载间隔
+      await sleep(downloadOption.dlInterval);
     }
-    // 栅栏，等待所有文章下载完成
-    for (const articlePromise of promiseArr) {
-      await articlePromise;
+  } else {
+    // 多线程下载
+    // 文章数量超过限制，则开始下载详情页
+    while (articleArr.length >= DOWNLOAD_LIMIT) {
+      const promiseArr: Promise<void>[] = [];
+      for (let i = 0; i < DOWNLOAD_LIMIT; i++) {
+        const article = articleArr.shift();
+        if (article) {
+          article.gzhInfo = GZH_INFO;
+          promiseArr.push(axiosDlOne(article));
+          // 下载间隔
+          await sleep(downloadOption.dlInterval);
+        }
+      }
+      // 栅栏，等待所有文章下载完成
+      for (const articlePromise of promiseArr) {
+        await articlePromise;
+      }
     }
   }
 
-  if (dataObj['can_msg_continue'] == 1) {
+  if (flgContinue && dataObj['can_msg_continue'] == 1) {
     await downList(dataObj['next_offset'], articleArr, startDate, endDate, articleCount);
   }
 }

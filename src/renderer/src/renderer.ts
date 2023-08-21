@@ -39,21 +39,19 @@ export function init(): void {
 async function addDlOneEvent() {
   const dlOneEle = document.getElementById('dlOne');
   const urlInputEle = <HTMLInputElement>document.getElementById('url-input');
-  if (dlOneEle && urlInputEle) {
-    dlOneEle.onclick = () => {
-      const url = urlInputEle.value;
-      const checkResult = checkURL(url);
-      if (!checkResult) {
-        window.electronApi.showMessageBox({
-          type: 'warning',
-          message: '请输入正确的url'
-        });
-        return;
-      }
-      // 下载详情页数据
-      window.electronApi.downloadOne(url);
-    };
-  }
+  dlOneEle!.onclick = () => {
+    const url = urlInputEle.value;
+    const checkResult = checkURL(url);
+    if (!checkResult) {
+      window.electronApi.showMessageBox({
+        type: 'warning',
+        message: '请输入正确的url'
+      });
+      return;
+    }
+    // 下载详情页数据
+    window.electronApi.downloadOne(url);
+  };
 }
 
 /*
@@ -73,12 +71,10 @@ function checkURL(URL): boolean {
  */
 async function addDlBatchEvent() {
   const dlBatchEle = document.getElementById('dlBatch');
-  if (dlBatchEle) {
-    dlBatchEle.onclick = () => {
-      window.electronApi.monitorArticle();
-      dlBatchEle.style.display = 'none';
-    };
-  }
+  dlBatchEle!.onclick = () => {
+    window.electronApi.monitorArticle();
+    dlBatchEle!.style.display = 'none';
+  };
 }
 
 async function addDldlRestrictionsBatchEvent() {
@@ -115,7 +111,7 @@ async function fillInput(selectPath: string) {
   document.querySelectorAll<HTMLInputElement>(selectPath).forEach((inputEle) => {
     const defaultVal = storeGet(inputEle.name);
 
-    if (defaultVal) {
+    if (defaultVal != null && defaultVal != undefined) {
       if (inputEle.type === 'checkbox') {
         if (defaultVal == 1) {
           inputEle.checked = true;
@@ -131,9 +127,11 @@ async function fillInput(selectPath: string) {
       // mysql配置框处理
       if ((inputEle.name == 'dlMysql' && defaultVal == 1) || (inputEle.name == 'dlSource' && defaultVal == 'db')) {
         const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
-        if (mysqlOptDiv) {
-          mysqlOptDiv.style.display = 'block';
-        }
+        mysqlOptDiv!.style.display = 'block';
+      } else if (inputEle.name == 'threadType' && inputEle.value == 'single' && inputEle.value == defaultVal) {
+        // 线程配置
+        const batchLimitSpan = document.querySelector<HTMLInputElement>('.batch-limit');
+        batchLimitSpan!.style.display = 'none';
       }
     }
   });
@@ -196,30 +194,34 @@ function addInputEvent(selectPath: string) {
       // mysql的配置框处理
       if (inputEle.name == 'dlMysql') {
         const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
-        if (mysqlOptDiv) {
-          if (inputEle.checked) {
-            mysqlOptDiv.style.display = 'block';
-          } else {
-            const dlSourceInput = document.querySelector<HTMLInputElement>('input[name=dlSource]:checked');
-            if (dlSourceInput && dlSourceInput.value === 'db') {
-              return;
-            }
-            mysqlOptDiv.style.display = 'none';
+        if (inputEle.checked) {
+          mysqlOptDiv!.style.display = 'block';
+        } else {
+          const dlSourceInput = document.querySelector<HTMLInputElement>('input[name=dlSource]:checked');
+          if (dlSourceInput && dlSourceInput.value === 'db') {
+            return;
           }
+          mysqlOptDiv!.style.display = 'none';
         }
-      }
-      if (inputEle.name == 'dlSource') {
+      } else if (inputEle.name == 'threadType') {
+        // 线程配置处理
+        const batchLimitSpan = document.querySelector<HTMLInputElement>('.batch-limit');
+        if (inputEle.value == 'single') {
+          batchLimitSpan!.style.display = 'none';
+        } else {
+          batchLimitSpan!.style.display = 'inline';
+        }
+      } else if (inputEle.name == 'dlSource') {
+        // 下载来源处理
         const mysqlOptDiv = document.querySelector<HTMLInputElement>('.mysql-option');
-        if (mysqlOptDiv) {
-          if (inputEle.checked && inputEle.value === 'db') {
-            mysqlOptDiv.style.display = 'block';
-          } else {
-            const dlMysqlInput = document.querySelector<HTMLInputElement>('input[name=dlMysql]');
-            if (dlMysqlInput && dlMysqlInput.checked) {
-              return;
-            }
-            mysqlOptDiv.style.display = 'none';
+        if (inputEle.checked && inputEle.value === 'db') {
+          mysqlOptDiv!.style.display = 'block';
+        } else {
+          const dlMysqlInput = document.querySelector<HTMLInputElement>('input[name=dlMysql]');
+          if (dlMysqlInput && dlMysqlInput.checked) {
+            return;
           }
+          mysqlOptDiv!.style.display = 'none';
         }
       }
     };
@@ -231,54 +233,46 @@ function addInputEvent(selectPath: string) {
  */
 async function addOpenLicenceEvent() {
   const openLicenceButton = document.getElementById('open-licence');
-  if (openLicenceButton) {
-    openLicenceButton.onclick = () => {
-      window.electronApi.openPath(storeGet('caPath'));
-    };
-  }
+  openLicenceButton!.onclick = () => {
+    window.electronApi.openPath(storeGet('caPath'));
+  };
 }
 /*
- * 打开证书路径事件
+ * 点击检查更新按钮事件
  */
 async function addCheckUpdateEvent() {
   const checkUpdateButton = document.getElementById('check-update');
-  if (checkUpdateButton) {
-    checkUpdateButton.onclick = () => {
-      window.electronApi.checkForUpdate();
-    };
-  }
+  checkUpdateButton!.onclick = () => {
+    window.electronApi.checkForUpdate();
+  };
 }
 /*
  * 选择保存路径事件
  */
 async function addChoseSavePathEvent() {
   const choseSavePathEle = document.getElementById('choseSavePath');
-  if (choseSavePathEle) {
-    choseSavePathEle.onclick = () => {
-      const options: OpenDialogOptions = {
-        title: '请选择保存路径',
-        defaultPath: storeGet('savePath'),
-        properties: ['openDirectory']
-      };
-      window.electronApi.showOpenDialog(options, 'savePath');
+  choseSavePathEle!.onclick = () => {
+    const options: OpenDialogOptions = {
+      title: '请选择保存路径',
+      defaultPath: storeGet('savePath'),
+      properties: ['openDirectory']
     };
-  }
+    window.electronApi.showOpenDialog(options, 'savePath');
+  };
 }
 /*
  * 选择缓存路径事件
  */
 async function addChoseTmpPathEvent() {
   const choseSavePathEle = document.getElementById('choseTmpPath');
-  if (choseSavePathEle) {
-    choseSavePathEle.onclick = () => {
-      const options: OpenDialogOptions = {
-        title: '请选择缓存路径',
-        defaultPath: storeGet('tmpPath'),
-        properties: ['openDirectory']
-      };
-      window.electronApi.showOpenDialog(options, 'tmpPath');
+  choseSavePathEle!.onclick = () => {
+    const options: OpenDialogOptions = {
+      title: '请选择缓存路径',
+      defaultPath: storeGet('tmpPath'),
+      properties: ['openDirectory']
     };
-  }
+    window.electronApi.showOpenDialog(options, 'tmpPath');
+  };
 }
 
 /*
@@ -299,39 +293,30 @@ async function addCallbackEvent() {
   // 下载完成
   window.electronApi.downloadFnish(async () => {
     const dlBatchEle = document.getElementById('dlBatch');
-    if (dlBatchEle) {
-      dlBatchEle.style.display = 'inline-block';
-    }
+    dlBatchEle!.style.display = 'inline-block';
   });
   // 接收更新信息
   window.electronApi.updateMsg(async (_event, msgObj: any) => {
     const updateMsgDivEle = document.getElementById('update-msg-div');
-    if (!updateMsgDivEle) {
-      return;
-    }
     if (msgObj.code == 3) {
-      updateMsgDivEle.style.display = 'none';
+      updateMsgDivEle!.style.display = 'none';
       const progressDivEle = document.getElementById('progress-div');
       if (progressDivEle) {
         progressDivEle.style.display = 'flex';
       }
     } else {
-      updateMsgDivEle.innerText = msgObj.msg;
+      updateMsgDivEle!.innerText = msgObj.msg;
     }
   });
   // 接收下载进度
   const numM = 1048576;
   window.electronApi.downloadProgress(async (_event, progressObj: any) => {
     const progressEle = <HTMLProgressElement>document.getElementById('update-progress');
-    if (progressEle) {
-      progressEle.value = progressObj.percent;
-    }
+    progressEle.value = progressObj.percent;
     const transferredEle = <HTMLProgressElement>document.getElementById('transferred-span');
-    if (transferredEle) {
-      const totalM = (progressObj.total / numM).toFixed(2);
-      const transferredM = (progressObj.transferred / numM).toFixed(2);
-      transferredEle.innerText = `${transferredM}/${totalM}M`;
-    }
+    const totalM = (progressObj.total / numM).toFixed(2);
+    const transferredM = (progressObj.transferred / numM).toFixed(2);
+    transferredEle.innerText = `${transferredM}/${totalM}M`;
   });
 }
 /*
@@ -340,9 +325,7 @@ async function addCallbackEvent() {
 async function initInfo() {
   const versionStr: string = window.electronApi.loadInitInfo();
   const versionSpanEle = document.getElementById('version-span');
-  if (versionSpanEle) {
-    versionSpanEle.innerText = versionStr;
-  }
+  versionSpanEle!.innerText = versionStr;
 }
 /*
  * 添加测试mysql连接事件
