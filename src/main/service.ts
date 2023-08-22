@@ -120,10 +120,10 @@ class DownloadOption {
 }
 // nodeWorker交互使用的通用消息响应类
 class NodeWorkerResponse {
-  public code: number;
+  public code: NwrEnum;
   public message: string;
   public data?: any;
-  constructor(code: number, message: string, data?) {
+  constructor(code: NwrEnum, message: string, data?) {
     this.code = code;
     this.message = message;
     this.data = data;
@@ -131,6 +131,7 @@ class NodeWorkerResponse {
 }
 // PDF信息类
 class PdfInfo {
+  public id: string;
   // 标题
   public title: string;
   // 保存文件名（因为有些标题不一定符合文件名的格式）
@@ -138,7 +139,8 @@ class PdfInfo {
   // 保存路径
   public savePath: string;
 
-  constructor(title: string, savePath: string, fileName?: string) {
+  constructor(id: string, title: string, savePath: string, fileName?: string) {
+    this.id = id;
     this.title = title;
     this.fileName = fileName;
     this.savePath = savePath;
@@ -146,12 +148,14 @@ class PdfInfo {
 }
 // NodeWorkerResponse的code枚举类
 enum NwrEnum {
+  START, // 启动
   SUCCESS, // 成功，输出日志
   FAIL, // 失败，输出日志并失败处理
   ONE_FINISH, // 单个下载结束，输出日志并做结束处理
   BATCH_FINISH, // 多个下载结束，输出日志并做结束处理
   CLOSE, // 结束线程
-  PDF // 创建pdf
+  PDF, // 创建pdf
+  PDF_FINISHED // 创建pdf完成
 }
 // 下载事件枚举类
 enum DlEventEnum {

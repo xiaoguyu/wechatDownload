@@ -159,8 +159,9 @@ async function downloadOne(url: string) {
 /*
  * 创建下载文章的线程
  */
+let worker;
 function createDlWorker(dlEvent: DlEventEnum, data?) {
-  const worker = creatWorker({
+  worker = creatWorker({
     workerData: loadWorkerData(dlEvent, data)
   });
 
@@ -189,7 +190,7 @@ function createDlWorker(dlEvent: DlEventEnum, data?) {
     }
   });
 
-  worker.postMessage('');
+  worker.postMessage(new NodeWorkerResponse(NwrEnum.START, ''));
 }
 
 async function html2Pdf(pdfInfo: PdfInfo) {
@@ -207,22 +208,18 @@ async function html2Pdf(pdfInfo: PdfInfo) {
       .printToPDF({})
       .then((data) => {
         const fileName = pdfInfo.fileName || 'index';
-        fs.writeFile(path.join(pdfInfo.savePath, `${fileName}.pdf`), data, (error) => {
-          pdfWindow.close();
-          fs.unlink(htmlPath, () => {});
-          if (error) {
-            logger.error(`【${pdfInfo.title}】保存PDF失败`, error);
-            outputLog(`【${pdfInfo.title}】保存PDF失败`, true);
-            return;
-          }
-          outputLog(`【${pdfInfo.title}】保存PDF完成`, true);
-        });
+        fs.writeFileSync(path.join(pdfInfo.savePath, `${fileName}.pdf`), data);
+        outputLog(`【${pdfInfo.title}】保存PDF完成`, true);
       })
       .catch((error) => {
-        pdfWindow.close();
-        fs.unlink(htmlPath, () => {});
         logger.error(`保存PDF失败:${pdfInfo.title}`, error);
         outputLog(`【${pdfInfo.title}】保存PDF失败`, true);
+      })
+      .finally(() => {
+        pdfWindow.close();
+        fs.unlink(htmlPath, () => {});
+        // 任务完成，通知worker线程
+        worker?.postMessage(new NodeWorkerResponse(NwrEnum.PDF_FINISHED, '', pdfInfo.id));
       });
   });
 }

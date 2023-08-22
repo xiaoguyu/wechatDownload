@@ -37,6 +37,8 @@ const dlEvent: DlEventEnum = workerData.dlEvent;
 let GZH_INFO: GzhInfo;
 // 数据库连接
 let CONNECTION: mysql.Connection;
+// 存放保存pdf任务钩子的map
+const pdfResolveMap = new Map();
 
 // 阻塞线程的sleep函数
 function sleep(delay?: number): Promise<void> {
@@ -53,26 +55,36 @@ const port = parentPort;
 if (!port) throw new Error('IllegalState');
 
 // 接收消息，执行任务
-port.on('message', async () => {
-  // 初始化数据库连接
-  await createMysqlConnection();
+port.on('message', async (message: NodeWorkerResponse) => {
+  if (message.code == NwrEnum.START) {
+    // 初始化数据库连接
+    await createMysqlConnection();
 
-  // 下载单个文章
-  if (dlEvent == DlEventEnum.ONE) {
-    const url = workerData.data;
-    const articleInfo = new ArticleInfo(null, null, url);
-    await axiosDlOne(articleInfo);
-    resp(NwrEnum.ONE_FINISH, '');
-    finish();
-  } else if (dlEvent == DlEventEnum.BATCH_WEB) {
-    // 从微信接口批量下载
-    GZH_INFO = workerData.data;
-    await batchDownloadFromWeb();
-  } else if (dlEvent == DlEventEnum.BATCH_DB) {
-    // 从数据库批量下载
-    await batchDownloadFromDb();
-  } else if (dlEvent == DlEventEnum.BATCH_SELECT) {
-    await batchDownloadFromWebSelect(workerData.data);
+    // 下载单个文章
+    if (dlEvent == DlEventEnum.ONE) {
+      const url = workerData.data;
+      const articleInfo = new ArticleInfo(null, null, url);
+      await axiosDlOne(articleInfo);
+      resp(NwrEnum.ONE_FINISH, '');
+      finish();
+    } else if (dlEvent == DlEventEnum.BATCH_WEB) {
+      // 从微信接口批量下载
+      GZH_INFO = workerData.data;
+      await batchDownloadFromWeb();
+    } else if (dlEvent == DlEventEnum.BATCH_DB) {
+      // 从数据库批量下载
+      await batchDownloadFromDb();
+    } else if (dlEvent == DlEventEnum.BATCH_SELECT) {
+      await batchDownloadFromWebSelect(workerData.data);
+    }
+  } else if (message.code == NwrEnum.PDF_FINISHED) {
+    // pdf保存完成的回调
+    const pdfKey = message.data || '';
+    const resolve = pdfResolveMap.get(pdfKey);
+    if (resolve) {
+      resolve();
+      pdfResolveMap.delete(pdfKey);
+    }
   }
 });
 
@@ -245,8 +257,11 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
         htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
         fs.writeFile(path.join(savePath, 'pdf.html'), $pdf.html(), () => {
           resp(NwrEnum.SUCCESS, `【${article.title}】保存pdf的html文件完成`);
-          resp(NwrEnum.PDF, '保存pdf', new PdfInfo(article.title, savePath, articleInfo.fileName));
-          resolve();
+          const articleId = md5(articleInfo.contentUrl);
+          // 通知main线程，保存pdf
+          resp(NwrEnum.PDF, '保存pdf', new PdfInfo(articleId, article.title, savePath, articleInfo.fileName));
+          // 保存回调钩子，等待main线程保存pdf完成
+          pdfResolveMap.set(articleId, resolve);
         });
       })
     );
