@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   优化pdf保存,可不更新
+   优化日志，新增失败重试

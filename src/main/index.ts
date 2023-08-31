@@ -30,7 +30,7 @@ let DL_TYPE = DlEventEnum.BATCH_WEB;
 let articleArr;
 
 // 配置的保存文件的路径
-logger.info('store.path', store.path);
+logger.debug('store.path', store.path);
 
 function createWindow(): void {
   MAIN_WINDOW = new BrowserWindow({
@@ -82,6 +82,7 @@ app.whenReady().then(() => {
     event.returnValue = store.get(val);
   });
   ipcMain.on('electron-store-set', async (_event, key, val) => {
+    logger.info('change setting', key, val);
     store.set(key, val);
   });
   // 选择路径
@@ -486,8 +487,10 @@ function sotreSetNotExit(key, value): boolean {
   const oldValue = store.get(key);
   if (oldValue === '' || oldValue === null || oldValue === undefined) {
     store.set(key, value);
+    logger.info('setting', key, value);
     return true;
   }
+  logger.info('setting', key, oldValue);
   return false;
 }
 

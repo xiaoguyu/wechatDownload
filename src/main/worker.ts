@@ -3,11 +3,17 @@ import logger from './logger';
 import { StrUtil, FileUtil, DateUtil } from './utils';
 import { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
+import axiosRetry from 'axios-retry';
 import md5 from 'blueimp-md5';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as mysql from 'mysql';
 import * as Readability from '@mozilla/readability';
+
+const onRetry = (retryCount, _err, requestConfig) => {
+  logger.info(`第${retryCount}次请求失败`, requestConfig.url, requestConfig.params);
+};
+axiosRetry(axios, { retries: 3, onRetry });
 
 const cheerio = require('cheerio');
 const { JSDOM } = require('jsdom');
@@ -38,7 +44,14 @@ let GZH_INFO: GzhInfo;
 // 数据库连接
 let CONNECTION: mysql.Connection;
 // 存放保存pdf任务钩子的map
-const pdfResolveMap = new Map();
+const PDF_RESOLVE_MAP = new Map();
+// 失败次数map
+const FAIL_COUNT_MAP = new Map();
+// 触发公众号反爬机制时重试等待时间(单位秒)
+// 别问为什么是60秒，因为30秒不够
+const FAIL_WAIT_SECOND = 60;
+// 触发公众号反爬机制时重试次数
+const FAIL_RETRY = 1;
 
 // 阻塞线程的sleep函数
 function sleep(delay?: number): Promise<void> {
@@ -80,10 +93,10 @@ port.on('message', async (message: NodeWorkerResponse) => {
   } else if (message.code == NwrEnum.PDF_FINISHED) {
     // pdf保存完成的回调
     const pdfKey = message.data || '';
-    const resolve = pdfResolveMap.get(pdfKey);
+    const resolve = PDF_RESOLVE_MAP.get(pdfKey);
     if (resolve) {
       resolve();
-      pdfResolveMap.delete(pdfKey);
+      PDF_RESOLVE_MAP.delete(pdfKey);
     }
   }
 });
@@ -96,7 +109,25 @@ port.addListener('close', () => {
   logger.info('addListener 线程关闭');
 });
 
-async function axiosDlOne(articleInfo: ArticleInfo) {
+/**
+ * 下载文章
+ * @param articleInfo 文章信息
+ * @param recall 是否重试
+ */
+async function axiosDlOne(articleInfo: ArticleInfo, reCall = false) {
+  // 如果标题不为空，则是从批量下载过来的，可以提前判断跳过
+  if (articleInfo.title && !reCall) {
+    const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
+    const saveDirName = StrUtil.strToDirName(articleInfo.title);
+    articleInfo.fileName = saveDirName;
+    // 创建保存文件夹
+    const savePath = path.join(downloadOption.savePath || '', timeStr + saveDirName);
+    if (fs.existsSync(savePath) && downloadOption.skinExist && downloadOption.skinExist == 1) {
+      resp(NwrEnum.SUCCESS, `【${saveDirName}】已存在，跳过此文章`);
+      return;
+    }
+  }
+
   const gzhInfo = articleInfo.gzhInfo;
   await axios
     .get(articleInfo.contentUrl, {
@@ -117,7 +148,7 @@ async function axiosDlOne(articleInfo: ArticleInfo) {
       logger.error('获取页面数据失败', error);
     });
   if (!articleInfo.html) return;
-  await dlOne(articleInfo);
+  await dlOne(articleInfo, true);
 }
 
 /*
@@ -136,6 +167,26 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     resp(NwrEnum.FAIL, '提取正文失败');
     return;
   }
+
+  // 触发了公众号的反爬机制，进行重试
+  if (article.title == '验证') {
+    let failCount = FAIL_COUNT_MAP.get(articleInfo.contentUrl) || 0;
+    failCount++;
+    if (failCount > FAIL_RETRY) {
+      resp(NwrEnum.FAIL, `触发公众号的反爬机制，停止采集!`);
+      resp(NwrEnum.FAIL, `建议设置合理的下载间隔`);
+      resp(NwrEnum.FAIL, `建议选择合适的下载范围，按区间分批下载`);
+      resp(NwrEnum.BATCH_FINISH, '');
+      finish();
+    }
+    FAIL_COUNT_MAP.set(articleInfo.contentUrl, failCount);
+    resp(NwrEnum.FAIL, `【${articleInfo.title}】触发公众号的反爬机制，等待${FAIL_WAIT_SECOND}秒后进行重试!`);
+    await sleep(FAIL_WAIT_SECOND * 1000);
+    resp(NwrEnum.FAIL, `【${articleInfo.title}】进行第${failCount}次重试`);
+    await axiosDlOne(articleInfo, true);
+    return;
+  }
+
   if (!articleInfo.title) articleInfo.title = article.title;
   if (!articleInfo.author) articleInfo.author = article.byline;
   if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime(htmlStr);
@@ -146,9 +197,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 下载评论
   await downloadComment(articleInfo);
 
-  // 创建保存文件夹和缓存文件夹
+  // 创建保存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
-  const saveDirName = StrUtil.strToDirName(article.title);
+  const saveDirName = StrUtil.strToDirName(articleInfo.title);
   articleInfo.fileName = saveDirName;
   const savePath = path.join(downloadOption.savePath || '', timeStr + saveDirName);
   if (!fs.existsSync(savePath)) {
@@ -160,6 +211,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
       return;
     }
   }
+  // 创建缓存文件夹
   const tmpPath = path.join(downloadOption.tmpPath || '', md5(url));
   if (!fs.existsSync(tmpPath)) {
     fs.mkdirSync(tmpPath, { recursive: true });
@@ -261,7 +313,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
           // 通知main线程，保存pdf
           resp(NwrEnum.PDF, '保存pdf', new PdfInfo(articleId, article.title, savePath, articleInfo.fileName));
           // 保存回调钩子，等待main线程保存pdf完成
-          pdfResolveMap.set(articleId, resolve);
+          PDF_RESOLVE_MAP.set(articleId, resolve);
         });
       })
     );
@@ -728,7 +780,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
   const oldArticleLengh = articleArr.length;
   const errmsg = dataObj['errmsg'];
   if ('ok' != errmsg) {
-    logger.error('获取文章列表失败', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
+    logger.error('获取文章列表失败', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`, dataObj);
     resp(NwrEnum.FAIL, `获取文章列表失败，错误信息：${errmsg}`);
     return;
   }
@@ -793,6 +845,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
 }
 
 function resp(code: NwrEnum, message: string, data?) {
+  logger.info('resp', code, message, data);
   if (port) port.postMessage(new NodeWorkerResponse(code, message, data));
 }
 
