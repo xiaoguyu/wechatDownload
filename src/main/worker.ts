@@ -7,7 +7,7 @@ import axiosRetry from 'axios-retry';
 import md5 from 'blueimp-md5';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as mysql from 'mysql';
+import * as mysql from 'mysql2';
 import * as Readability from '@mozilla/readability';
 
 const onRetry = (retryCount, _err, requestConfig) => {
@@ -43,6 +43,7 @@ const dlEvent: DlEventEnum = workerData.dlEvent;
 let GZH_INFO: GzhInfo;
 // 数据库连接
 let CONNECTION: mysql.Connection;
+let CONNECTION_STATE = false;
 // 存放保存pdf任务钩子的map
 const PDF_RESOLVE_MAP = new Map();
 // 失败次数map
@@ -241,7 +242,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
   const proArr: Promise<void>[] = [];
   // 判断是否保存到数据库
-  if (1 == downloadOption.dlMysql && CONNECTION.state == 'authenticated' && saveToDb) {
+  if (1 == downloadOption.dlMysql && CONNECTION_STATE && saveToDb) {
     proArr.push(
       new Promise((resolve, _reject) => {
         const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.title, articleInfo.datetime];
@@ -625,7 +626,7 @@ function addSongDiv($ele, musicName: string, songSrc: string, singer?: string) {
  */
 async function batchDownloadFromDb() {
   const exeStartTime = performance.now();
-  if (CONNECTION.state != 'authenticated') {
+  if (CONNECTION_STATE) {
     resp(NwrEnum.BATCH_FINISH, '数据库初始化失败');
     return;
   }
@@ -861,18 +862,17 @@ async function createMysqlConnection(): Promise<mysql.Connection> {
   CONNECTION = mysql.createConnection(connectionConfig);
   // 这里是想阻塞等待连接成功
   return new Promise((resolve, _reject) => {
-    CONNECTION.connect(() => {
-      const sql = 'show tables';
-      CONNECTION.query(sql, (err) => {
-        if (err) {
-          resp(NwrEnum.FAIL, 'mysql连接失败');
-          logger.error('mysql连接失败', err);
-        } else {
-          resp(NwrEnum.SUCCESS, 'mysql连接成功');
-          logger.info('连接成功');
-        }
-        resolve(CONNECTION);
-      });
+    const sql = 'show tables';
+    CONNECTION.query(sql, (err) => {
+      if (err) {
+        resp(NwrEnum.FAIL, 'mysql连接失败');
+        logger.error('mysql连接失败', err);
+      } else {
+        resp(NwrEnum.SUCCESS, 'mysql连接成功');
+        logger.info('连接成功');
+        CONNECTION_STATE = true;
+      }
+      resolve(CONNECTION);
     });
   });
 }

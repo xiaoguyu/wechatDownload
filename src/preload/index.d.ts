@@ -9,6 +9,8 @@ declare global {
       /*** render->main ***/
       // 以桌面的默认方式打开给定的文件
       openPath(path: string): Promise<string>;
+      // 打开日志文件的文件夹
+      openLogsDir();
       // 选择路径
       showOpenDialog(options: OpenDialogOptions, callbackMsg: string);
       // 下载详情页数据

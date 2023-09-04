@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   优化日志，新增失败重试
+   添加对mysql8的支持

@@ -21,6 +21,8 @@ export function init(): void {
     addOpenLicenceEvent();
     // 检查更新事件绑定
     addCheckUpdateEvent();
+    // 打开日志文件夹
+    addOpenLogsDirEvent();
     // 选择保存路径
     addChoseSavePathEvent();
     // 选择缓存路径
@@ -244,6 +246,15 @@ async function addCheckUpdateEvent() {
   const checkUpdateButton = document.getElementById('check-update');
   checkUpdateButton!.onclick = () => {
     window.electronApi.checkForUpdate();
+  };
+}
+/*
+ * 打开日志文件夹
+ */
+async function addOpenLogsDirEvent() {
+  const oepnLogsDirButton = document.getElementById('open-logs-dir');
+  oepnLogsDirButton!.onclick = () => {
+    window.electronApi.openLogsDir();
   };
 }
 /*

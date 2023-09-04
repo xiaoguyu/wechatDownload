@@ -3,7 +3,7 @@
 import { app, dialog, shell, ipcMain, BrowserWindow, OpenDialogOptions, MessageBoxOptions } from 'electron';
 import { electronApp, is } from '@electron-toolkit/utils';
 import Store from 'electron-store';
-import * as mysql from 'mysql';
+import * as mysql from 'mysql2';
 import * as AnyProxy from 'anyproxy';
 import * as path from 'path';
 import * as os from 'os';
@@ -35,7 +35,7 @@ logger.debug('store.path', store.path);
 function createWindow(): void {
   MAIN_WINDOW = new BrowserWindow({
     width: 900,
-    height: 670,
+    height: 680,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux'
@@ -77,6 +77,10 @@ app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.javaedit');
 
+  // 打开日志文件夹
+  ipcMain.on('open-logs-dir', () => {
+    shell.openPath(path.join(app.getPath('appData'), 'wechatDownload', 'logs'));
+  });
   // electron-store的api
   ipcMain.on('electron-store-get', (event, val) => {
     event.returnValue = store.get(val);
@@ -399,23 +403,21 @@ async function testMysqlConnection() {
     database: <string>store.get('mysqlDatabase'),
     charset: 'utf8mb4'
   });
-  CONNECTION.connect(() => {
-    const sql = 'show tables';
-    CONNECTION.query(sql, (err) => {
-      if (err) {
-        logger.error('mysql连接失败', err);
-        dialog.showMessageBox(MAIN_WINDOW, {
-          type: 'error',
-          message: '连接失败，请检查参数'
-        });
-      } else {
-        dialog.showMessageBox(MAIN_WINDOW, {
-          type: 'info',
-          message: '连接成功'
-        });
-      }
-      return CONNECTION;
-    });
+  const sql = 'show tables';
+  CONNECTION.query(sql, (err) => {
+    if (err) {
+      logger.error('mysql连接失败', err);
+      dialog.showMessageBox(MAIN_WINDOW, {
+        type: 'error',
+        message: '连接失败，请检查参数'
+      });
+    } else {
+      dialog.showMessageBox(MAIN_WINDOW, {
+        type: 'info',
+        message: '连接成功'
+      });
+    }
+    return CONNECTION;
   });
 }
 
