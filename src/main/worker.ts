@@ -626,7 +626,7 @@ function addSongDiv($ele, musicName: string, songSrc: string, singer?: string) {
  */
 async function batchDownloadFromDb() {
   const exeStartTime = performance.now();
-  if (CONNECTION_STATE) {
+  if (!CONNECTION_STATE) {
     resp(NwrEnum.BATCH_FINISH, '数据库初始化失败');
     return;
   }
@@ -640,7 +640,7 @@ async function batchDownloadFromDb() {
     } else {
       let articleCount = 0;
       const promiseArr: Promise<void>[] = [];
-      for (const dbObj of result) {
+      for (const dbObj of <mysql.RowDataPacket[]>result) {
         articleCount++;
         const articleInfo: ArticleInfo = service.dbObjToArticle(dbObj, downloadOption);
         promiseArr.push(dlOne(articleInfo, false));
