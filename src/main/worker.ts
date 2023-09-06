@@ -470,7 +470,7 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
     fs.mkdirSync(imgPath, { recursive: true });
   }
 
-  imgArr.each(function (_i, elem) {
+  imgArr.each(function (i, elem) {
     const $ele = $(elem);
     // 文件后缀
     const fileSuf = $ele.attr('data-type') || 'jpg';
@@ -478,11 +478,12 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
     const fileUrl = $ele.attr('data-src');
     if (fileUrl) {
       imgCount++;
-      const fileName = `${md5(fileUrl)}.${fileSuf}`;
-      const dlPromise = FileUtil.downloadFile(fileUrl, tmpPath, fileName).then((_fileName) => {
+      const tmpFileName = `${md5(fileUrl)}.${fileSuf}`;
+      const fileName = `${i}.${fileSuf}`;
+      const dlPromise = FileUtil.downloadFile(fileUrl, tmpPath, tmpFileName).then((_fileName) => {
         $ele.attr('src', path.join('img', fileName));
         // 图片下载完成之，将图片从缓存文件夹复制到需要保存的文件夹
-        const resolveSavePath = path.join(imgPath, _fileName);
+        const resolveSavePath = path.join(imgPath, fileName);
         if (!fs.existsSync(resolveSavePath)) {
           // 复制
           fs.copyFile(path.join(tmpPath, _fileName), resolveSavePath, (err) => {
@@ -521,8 +522,8 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
   // 处理QQ音乐
   const gzhInfo = articleInfo.gzhInfo;
   if (gzhInfo) {
-    for (const elem of musicArr) {
-      const $ele = $(elem);
+    for (let i = 0; i < musicArr.length; i++) {
+      const $ele = $(musicArr[i]);
       // 歌名
       const musicName = $ele.attr('music_name');
       // 歌手名
@@ -545,8 +546,9 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
           const songInfo = songDesc.songlist[0];
           const songSrc = songInfo['song_play_url_standard'];
           if (songSrc) {
-            const fileName = `${mid}.m4a`;
-            awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName, singer));
+            const tmpFileName = `${mid}.m4a`;
+            const fileName = `public_${i}.m4a`;
+            awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName, singer));
           }
         })
         .catch((error) => {
@@ -555,16 +557,17 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
     }
   }
   // 处理作者录制的音频
-  for (const elem of mpvoiceArr) {
-    const $ele = $(elem);
+  for (let j = 0; j < mpvoiceArr.length; j++) {
+    const $ele = $(mpvoiceArr[j]);
     // 歌名
     const musicName = $ele.attr('name');
     // 歌曲id
     const mid = $ele.attr('voice_encode_fileid');
     const songSrc = `https://res.wx.qq.com/voice/getvoice?mediaid=${mid}`;
-    const fileName = `${mid}.mp3`;
+    const tmpFileName = `${mid}.mp3`;
+    const fileName = `person_${j}.mp3`;
     // 下载音频到本地
-    awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, fileName));
+    awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName));
   }
 
   for (const dlPromise of awaitArr) {
@@ -578,20 +581,21 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
  * songSrc：歌曲url
  * songPath：歌曲保存路径
  * tmpPath：缓存路径
- * fileName：歌曲文件名
+ * tmpFileName：缓存歌曲文件名(缓存文件夹中的名字)
+ * fileName：歌曲文件名(html中的名字)
  * singer：歌手
  */
-async function downloadSong($ele, musicName: string, songSrc: string, songPath: string, tmpPath: string, fileName: string, singer?: string): Promise<void> {
+async function downloadSong($ele, musicName: string, songSrc: string, songPath: string, tmpPath: string, tmpFileName: string, fileName: string, singer?: string): Promise<void> {
   if (1 == downloadOption.dlAudio) {
     resp(NwrEnum.SUCCESS, `正在下载歌曲【${musicName}】...`);
-    await FileUtil.downloadFile(songSrc, tmpPath, fileName).then((_fileName) => {
+    await FileUtil.downloadFile(songSrc, tmpPath, tmpFileName).then((_fileName) => {
       // 音频下载完成之后，从缓存文件夹复制到需要保存的文件夹
-      const resolveSavePath = path.join(songPath, _fileName);
+      const resolveSavePath = path.join(songPath, fileName);
       if (!fs.existsSync(resolveSavePath)) {
         // 复制
         fs.copyFileSync(path.join(tmpPath, _fileName), resolveSavePath);
       }
-      songSrc = path.join('song', _fileName);
+      songSrc = path.join('song', fileName);
       addSongDiv($ele, musicName, songSrc, singer);
       resp(NwrEnum.SUCCESS, `歌曲【${musicName}】下载完成...`);
     });

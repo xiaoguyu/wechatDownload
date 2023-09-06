@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   添加对mysql8的支持
+   优化下载文件的命名排序
