@@ -248,9 +248,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
         const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.title, articleInfo.datetime];
         CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
           if (err) {
-            logger.error('mysql插入失败', err.message);
+            logger.error('mysql插入失败', err);
           } else {
-            logger.info('mysql更新成功');
+            resp(NwrEnum.SUCCESS, `【${article.title}】保存Mysql完成`);
           }
           resolve();
         });
@@ -510,7 +510,7 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
  */
 async function convertAudio($, savePath: string, tmpPath: string, articleInfo: ArticleInfo) {
   const musicArr = $('qqmusic');
-  const mpvoiceArr = $('mpvoice');
+  const mpvoiceArr = $('mp-common-mpaudio');
 
   // 创建歌曲的文件夹
   const songPath = path.join(savePath, 'song');
