@@ -26,9 +26,9 @@ Electron + Typescript
 
 ### 使用
 
-![image-20230112181356841](https://img.javaedit.com/images/2023/08/14/2512825f1bd1d18026a9afb921a66e1d.png)
+![image-20230112181356841](doc/imgages/main.png)
 
-![image-20230821104149231](https://img.javaedit.com/images/2023/08/21/e41d425b63373a86dbdfcff7edb8e309.png)
+![image-20230821104149231](doc/imgages/setting.png)
 
 - 单篇文章下载
 
@@ -39,12 +39,12 @@ Electron + Typescript
 - 批量下载
 
   1. 初次使用请安装证书,设置中心 → 打开证书路径 → 打开rootCA.crt文件
-      ![Untitled](https://img.javaedit.com/images/2023/02/07/1dc6bcf1c15dd3cb17985eb555027c2b.png)
+      ![Untitled](doc/imgages/ca.png)
   2. 需要安装电脑版微信
   3. 点击**批量下载**按钮，开始监听微信公号数据
   4. 在电脑版微信打开一篇需要下载的公号的文章
   5. 回到WechatDownload，会弹框提示
-      ![wechatDownload.gif](https://img.javaedit.com/images/2023/02/07/693133554baca2716bc52206f1d5613b.gif)
+      ![wechatDownload.gif](doc/imgages/batch.gif)
 
 - 监控下载
 
@@ -56,7 +56,7 @@ Electron + Typescript
   
   4. 回到WechatDownload，再次点击**监控下载**按钮即可开始下载
   
-     ![wechatDownload](https://img.javaedit.com/images/2023/08/14/a7dc793ee63e2871d7dcfb6ac96d7022.gif)
+     ![wechatDownload](doc/imgages/monitoring.gif)
   
 - 保存至 MySql
 
@@ -109,3 +109,7 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=xiaoguyu/wechatDownload&type=Date)](https://star-history.com/#xiaoguyu/wechatDownload&Date)
