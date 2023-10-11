@@ -7,6 +7,8 @@ declare global {
     api: unknown;
     electronApi: {
       /*** render->main ***/
+      // 安装证书
+      installLicence();
       // 以桌面的默认方式打开给定的文件
       openPath(path: string): Promise<string>;
       // 打开日志文件的文件夹

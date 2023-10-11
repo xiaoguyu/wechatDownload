@@ -1,7 +1,4 @@
 import { StrUtil } from './utils';
-import logger from './logger';
-import * as path from 'path';
-import * as AnyProxy from 'anyproxy';
 
 const cheerio = require('cheerio');
 
@@ -667,22 +664,6 @@ class Service {
       placeName = electedComment['ip_wording']['province_name'] ? electedComment['ip_wording']['province_name'] : electedComment['ip_wording']['country_name'];
     }
     return placeName;
-  }
-  /*
-   * 创建CA证书
-   * 如果没有创建ca证书，则创建，默认目录在C:\Users\xxx\.anyproxy\certificates
-   */
-  public createCAFile() {
-    if (!AnyProxy.utils.certMgr.ifRootCAFileExists()) {
-      AnyProxy.utils.certMgr.generateRootCA((error, keyPath) => {
-        if (!error) {
-          const certDir = path.dirname(keyPath);
-          logger.info('CA证书创建成功，路径：', certDir);
-        } else {
-          logger.error('CA证书创建失败', error);
-        }
-      });
-    }
   }
   /*
    * 创建html转markdown的TurndownService

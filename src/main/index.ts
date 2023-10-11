@@ -9,13 +9,15 @@ import * as path from 'path';
 import * as os from 'os';
 import { HttpUtil } from './utils';
 import logger from './logger';
-import { GzhInfo, ArticleInfo, PdfInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
+import { GzhInfo, ArticleInfo, PdfInfo, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
 import creatWorker from './worker?nodeWorker';
 import * as fs from 'fs';
 
 const _AnyProxy = require('anyproxy');
+const exec = require('child_process').exec;
+const iconv = require('iconv-lite');
 const store = new Store();
-const service = new Service();
+// const service = new Service();
 
 import { autoUpdater, UpdateInfo } from 'electron-updater';
 
@@ -70,13 +72,15 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  // CA证书处理
-  service.createCAFile();
   setDefaultSetting();
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.javaedit');
 
+  // 安装证书
+  ipcMain.on('install-licence', () => {
+    installCAFile(path.join(<string>store.get('caPath'), 'rootCA.crt'));
+  });
   // 打开日志文件夹
   ipcMain.on('open-logs-dir', () => {
     shell.openPath(path.join(app.getPath('appData'), 'wechatDownload', 'logs'));
@@ -136,6 +140,9 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // CA证书处理
+  createCAFile();
+
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -151,6 +158,65 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+/*
+ * 创建CA证书
+ * 如果没有创建ca证书，则创建，默认目录在C:\Users\xxx\.anyproxy\certificates
+ */
+function createCAFile() {
+  if (!AnyProxy.utils.certMgr.ifRootCAFileExists()) {
+    AnyProxy.utils.certMgr.generateRootCA((error, keyPath) => {
+      if (!error) {
+        const certDir = path.dirname(keyPath);
+        logger.info('CA证书创建成功，路径：', certDir);
+        // 安装证书
+        installCAFile(path.join(certDir, 'rootCA.crt'));
+      } else {
+        logger.error('CA证书创建失败', error);
+        dialog.showMessageBox(MAIN_WINDOW, {
+          type: 'error',
+          message: '证书创建失败'
+        });
+      }
+    });
+  }
+}
+
+/**
+ * 安装ca证书
+ * @param filePath 证书路径
+ */
+function installCAFile(filePath: string) {
+  // 如果是window系统，则自动安装证书
+  if (process.platform === 'win32') {
+    exec(`certutil -addstore root ${filePath}`, { encoding: 'buffer' }, (err, _stdout, stderr) => {
+      if (err) {
+        logger.error('CA证书安装失败-stderr', iconv.decode(stderr, 'cp936'));
+        logger.error('CA证书安装失败-err', err);
+        dialog.showMessageBox(MAIN_WINDOW, {
+          type: 'error',
+          message: '证书安装失败，请以管理员身份运行本软件重新安装证书或手动安装'
+        });
+      } else {
+        logger.info('CA证书安装成功');
+        dialog
+          .showMessageBox(MAIN_WINDOW, {
+            type: 'info',
+            message: '证书安装成功，准备重启软件'
+          })
+          .then(() => {
+            app.relaunch();
+            app.exit();
+          });
+      }
+    });
+  } else {
+    dialog.showMessageBox(MAIN_WINDOW, {
+      type: 'error',
+      message: '不是window系统，请手动安装'
+    });
+  }
+}
 
 /*
  * 下载单个页面

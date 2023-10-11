@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   优化下载文件的命名排序
+   新增自动安装证书（仅限window系统）

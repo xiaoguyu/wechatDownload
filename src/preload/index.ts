@@ -20,6 +20,8 @@ if (process.contextIsolated) {
 
 contextBridge.exposeInMainWorld('electronApi', {
   /*** render->main ***/
+  // 安装证书
+  installLicence: () => ipcRenderer.send('install-licence'),
   // 以桌面的默认方式打开给定的文件
   openPath: (path: string) => shell.openPath(path),
   // 打开日志文件的文件夹

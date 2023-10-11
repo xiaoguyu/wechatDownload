@@ -17,6 +17,8 @@ export function init(): void {
     addMenuEvent();
     // 设置中心事件绑定
     addSettingEvent();
+    // 安装证书事件绑定
+    addInstallLicenceEvent();
     // 打开证书路径事件绑定
     addOpenLicenceEvent();
     // 检查更新事件绑定
@@ -230,6 +232,15 @@ function addInputEvent(selectPath: string) {
   });
 }
 
+/*
+ * 安装证书路径事件
+ */
+async function addInstallLicenceEvent() {
+  const installLicenceButton = document.getElementById('install-licence');
+  installLicenceButton!.onclick = () => {
+    window.electronApi.installLicence();
+  };
+}
 /*
  * 打开证书路径事件
  */

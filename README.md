@@ -28,7 +28,7 @@ Electron + Typescript
 
 ![image-20230112181356841](doc/imgages/main.png)
 
-![image-20230821104149231](doc/imgages/setting.png)
+![image-20230821104149231](doc/imgages/setting.jpg)
 
 - 单篇文章下载
 
@@ -38,11 +38,25 @@ Electron + Typescript
 
 - 批量下载
 
-  1. 初次使用请安装证书,设置中心 → 打开证书路径 → 打开rootCA.crt文件
-      ![Untitled](doc/imgages/ca.png)
+  1. 初次使用请安装证书,
+      
+      - 自动安装（仅限window系统）
+      
+        需要管理员权限（右击软件图标 -> 以管理员身份运行）
+      
+        设置中心 → 安装证书
+      
+      - 手动安装
+      
+        设置中心 → 打开证书路径 → 打开rootCA.crt文件
+        ![Untitled](doc/imgages/ca.png)
+      
   2. 需要安装电脑版微信
+
   3. 点击**批量下载**按钮，开始监听微信公号数据
+
   4. 在电脑版微信打开一篇需要下载的公号的文章
+
   5. 回到WechatDownload，会弹框提示
       ![wechatDownload.gif](doc/imgages/batch.gif)
 
