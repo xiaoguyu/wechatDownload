@@ -538,7 +538,7 @@ function setDefaultSetting() {
     // 缓存目录
     tmpPath: path.join(os.tmpdir(), 'wechatDownload'),
     // 在安装目录下创建文章的保存路径
-    savePath: path.join(path.dirname(app.getPath('exe')), 'savePath'),
+    savePath: path.join(app.getPath('userData'), 'savePath'),
     // CA证书路径
     caPath: _AnyProxy.utils.certMgr.getRootDirPath(),
     // mysql配置-端口
