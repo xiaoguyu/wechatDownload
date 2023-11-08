@@ -123,7 +123,3 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=xiaoguyu/wechatDownload&type=Date)](https://star-history.com/#xiaoguyu/wechatDownload&Date)

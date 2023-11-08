@@ -163,11 +163,16 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 提取正文
   const doc = new JSDOM(htmlStr);
   const reader = new Readability.Readability(<Document>doc.window.document, { keepClasses: true });
-  const article = reader.parse();
-  if (!article) {
+  let _article = reader.parse();
+  if (!_article) {
+    // 可能是海报格式的文章(https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA)
+    _article = parsePostHtml(articleInfo);
+  }
+  if (!_article) {
     resp(NwrEnum.FAIL, '提取正文失败');
     return;
   }
+  const article = _article;
 
   // 触发了公众号的反爬机制，进行重试
   if (article.title == '验证') {
@@ -326,6 +331,48 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   resp(NwrEnum.SUCCESS, `【${article.title}】下载完成，共${imgCount}张图，url：${url}`);
 }
 
+const picListRegex = /window.picture_page_info_list\s*=\s(\[[\s\S]*\])\.slice/;
+const cdnUrlRegex = /cdn_url:\s?'(.*)',/g;
+function parsePostHtml(articleInfo: ArticleInfo) {
+  const $ = cheerio.load(articleInfo.html);
+  // 获取内容
+  const contentText = $('meta[name=description]').attr('content');
+  // 获取图片
+  const picArr: unknown[] = [];
+  const picListmatch = picListRegex.exec(articleInfo.html || '');
+  if (picListmatch) {
+    let cdnUrlMatch;
+    for (let iii = 0; iii < 20; iii++) {
+      cdnUrlMatch = cdnUrlRegex.exec(picListmatch[1]);
+      if (!cdnUrlMatch) {
+        break;
+      }
+      picArr.push(cdnUrlMatch[1]);
+    }
+  }
+  // 标题
+  const title = $('.rich_media_title').text();
+  if (!title || picArr.length == 0) {
+    return null;
+  }
+  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll('\\x0a', '</br>')}<p>`;
+  for (const pidx in picArr) {
+    contentHtml = contentHtml + `<img src='${picArr[pidx]}' >`;
+  }
+  contentHtml += '</div>';
+  return {
+    title: title,
+    content: contentHtml,
+    textContent: '',
+    length: 0,
+    excerpt: '',
+    byline: '',
+    dir: '',
+    siteName: '',
+    lang: ''
+  };
+}
+
 /**
  * 解析元数据
  * @param articleInfo 文章信息
@@ -405,7 +452,9 @@ async function downloadComment(articleInfo: ArticleInfo) {
           resp(NwrEnum.FAIL, `【${articleInfo.title}】获取精选评论失败：${resData.errmsg}`);
           return;
         }
-        commentList = resData.elected_comment;
+        if (resData.elected_comment && resData.elected_comment.length > 0) {
+          commentList = resData.elected_comment;
+        }
         logger.debug(`【${articleInfo.title}】精选评论`, commentList);
       })
       .catch((error) => {
@@ -481,7 +530,7 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
       const tmpFileName = `${md5(fileUrl)}.${fileSuf}`;
       const fileName = `${i}.${fileSuf}`;
       const dlPromise = FileUtil.downloadFile(fileUrl, tmpPath, tmpFileName).then((_fileName) => {
-        $ele.attr('src', path.join('img', fileName));
+        $ele.attr('src', path.join('img', fileName).replaceAll('\\', '/'));
         // 图片下载完成之，将图片从缓存文件夹复制到需要保存的文件夹
         const resolveSavePath = path.join(imgPath, fileName);
         if (!fs.existsSync(resolveSavePath)) {
@@ -509,7 +558,10 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
  * tmpPath： 缓存路径(已区分文章)，例如：D://tmpPathPath//6588aec6b658b2c941f6d51d0b1691b9
  */
 async function convertAudio($, savePath: string, tmpPath: string, articleInfo: ArticleInfo) {
-  const musicArr = $('qqmusic');
+  let musicArr = $('mp-common-qqmusic');
+  if (musicArr.length == 0) {
+    musicArr = $('qqmusic');
+  }
   const mpvoiceArr = $('mp-common-mpaudio');
 
   // 创建歌曲的文件夹
@@ -595,7 +647,7 @@ async function downloadSong($ele, musicName: string, songSrc: string, songPath: 
         // 复制
         fs.copyFileSync(path.join(tmpPath, _fileName), resolveSavePath);
       }
-      songSrc = path.join('song', fileName);
+      songSrc = path.join('song', fileName).replaceAll('\\', '/');
       addSongDiv($ele, musicName, songSrc, singer);
       resp(NwrEnum.SUCCESS, `歌曲【${musicName}】下载完成...`);
     });

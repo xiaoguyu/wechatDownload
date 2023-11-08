@@ -323,7 +323,7 @@ async function monitorArticle() {
       outputLog('批量下载超时，未监测到公号文章！', true);
       AnyProxy.utils.systemProxyMgr.disableGlobalProxy();
       MAIN_WINDOW.webContents.send('download-fnish');
-    }, 10000);
+    }, 15000);
   }
 }
 /*
