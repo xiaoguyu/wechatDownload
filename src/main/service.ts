@@ -88,6 +88,8 @@ class DownloadOption {
   public skinExist?: number;
   // 是否保存元数据
   public saveMeta?: number;
+  // 是否按公号名字归类
+  public classifyDir?: number;
   // 是否添加原文链接
   public sourceUrl?: number;
   // 是否下载评论

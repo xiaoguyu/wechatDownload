@@ -527,6 +527,8 @@ function setDefaultSetting() {
     skinExist: 1,
     // 是否保存元数据
     saveMeta: 1,
+    // 按公号名字分类
+    classifyDir: 1,
     // 添加原文链接
     sourceUrl: 1,
     // 是否下载评论

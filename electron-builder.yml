@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   新增对海报格式页面的支持
+   新增按公众号区分文件夹保存

@@ -206,8 +206,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 创建保存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
   const saveDirName = StrUtil.strToDirName(articleInfo.title);
+  const jsName = 1 == downloadOption.classifyDir ? StrUtil.strToDirName(articleInfo.metaInfo?.jsName || '') : '';
   articleInfo.fileName = saveDirName;
-  const savePath = path.join(downloadOption.savePath || '', timeStr + saveDirName);
+  const savePath = path.join(downloadOption.savePath || '', jsName, timeStr + saveDirName);
   if (!fs.existsSync(savePath)) {
     fs.mkdirSync(savePath, { recursive: true });
   } else {
@@ -241,7 +242,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
     readabilityPage.prepend(`<div>原文地址：<a href='${url}' target='_blank'>${article.title}</a></div>`);
   }
   // 插入元数据
-  readabilityPage.prepend(service.getMetaHtml(articleInfo.metaInfo));
+  if (1 == downloadOption.saveMeta) {
+    readabilityPage.prepend(service.getMetaHtml(articleInfo.metaInfo));
+  }
   // 插入标题
   readabilityPage.prepend(`<h1>${article.title}</h1>`);
 
@@ -380,10 +383,10 @@ function parsePostHtml(articleInfo: ArticleInfo) {
  * @param byline Readability解析出来的作者名
  */
 function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
-  // 判断是否需要下载评论
-  if (1 != downloadOption.saveMeta) {
-    return;
-  }
+  // 判断是否需要下载元数据
+  // if (1 != downloadOption.saveMeta) {
+  //   return;
+  // }
   const $meta = cheerio.load(htmlStr);
   const authorName = $meta('#js_author_name')?.text();
   const jsName = StrUtil.trim($meta('#js_name')?.text());
@@ -731,7 +734,7 @@ async function batchDownloadFromWeb() {
   const exeStartTime = performance.now();
   // 获取文章列表
   const articleCount: number[] = [0];
-  await downList(0, articleArr, startDate, endDate, articleCount);
+  await downList(0, articleArr, startDate, endDate, articleCount, true);
 
   // downList中没下载完的，在这处理
   const promiseArr: Promise<void>[] = [];
@@ -801,7 +804,11 @@ async function batchDownloadFromWebSelect(articleArr: ArticleInfo[]) {
  * endDate：过滤结束时间
  * articleCount：文章数量
  */
-async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, articleCount: number[]) {
+async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, articleCount: number[], flgFirst: boolean = false) {
+  if (!flgFirst && (!articleArr || articleArr.length == 0)) {
+    logger.error('下载异常，文章数量为0');
+    return;
+  }
   let dataObj;
   logger.debug('下载文章列表', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
   await axios
