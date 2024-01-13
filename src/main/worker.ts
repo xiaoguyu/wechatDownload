@@ -388,8 +388,8 @@ function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
   //   return;
   // }
   const $meta = cheerio.load(htmlStr);
-  const authorName = $meta('#js_author_name')?.text();
-  const jsName = StrUtil.trim($meta('#js_name')?.text());
+  const authorName = getEleText($meta('#js_author_name'));
+  const jsName = getEleText($meta('#js_name'));
   const copyrightFlg = $meta('#copyright_logo')?.text() ? true : false;
   const publicTime = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd HH:mm') : '';
   const ipWording = service.matchIpWording(htmlStr);
@@ -400,6 +400,17 @@ function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
   articleMeta.publicTime = publicTime;
   articleMeta.ipWording = ipWording;
   articleInfo.metaInfo = articleMeta;
+}
+
+function getEleText(ele: any): string {
+  if (ele) {
+    if (ele.length > 1) {
+      return StrUtil.trim(ele.first().text());
+    } else {
+      return StrUtil.trim(ele.text());
+    }
+  }
+  return '';
 }
 
 /*
@@ -734,7 +745,7 @@ async function batchDownloadFromWeb() {
   const exeStartTime = performance.now();
   // 获取文章列表
   const articleCount: number[] = [0];
-  await downList(0, articleArr, startDate, endDate, articleCount, true);
+  await downList(0, articleArr, startDate, endDate, articleCount);
 
   // downList中没下载完的，在这处理
   const promiseArr: Promise<void>[] = [];
@@ -804,11 +815,7 @@ async function batchDownloadFromWebSelect(articleArr: ArticleInfo[]) {
  * endDate：过滤结束时间
  * articleCount：文章数量
  */
-async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, articleCount: number[], flgFirst: boolean = false) {
-  if (!flgFirst && (!articleArr || articleArr.length == 0)) {
-    logger.error('下载异常，文章数量为0');
-    return;
-  }
+async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate: Date, endDate: Date, articleCount: number[]) {
   let dataObj;
   logger.debug('下载文章列表', `${LIST_URL}&__biz=${GZH_INFO.biz}&key=${GZH_INFO.key}&uin=${GZH_INFO.uin}&pass_ticket=${GZH_INFO.passTicket}&offset=${nextOffset}`);
   await axios

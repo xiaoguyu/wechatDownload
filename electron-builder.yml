@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   新增按公众号区分文件夹保存
+   修复获取公众号名字错误的问题
