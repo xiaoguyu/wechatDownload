@@ -167,6 +167,11 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   if (!_article) {
     // 可能是海报格式的文章(https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA)
     _article = parsePostHtml(articleInfo);
+  } else {
+    const $ = cheerio.load(articleInfo.html);
+    if ($('#js_article').hasClass('share_content_page')) {
+      _article = parsePostHtml(articleInfo);
+    }
   }
   if (!_article) {
     resp(NwrEnum.FAIL, '提取正文失败');
