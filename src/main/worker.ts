@@ -365,7 +365,7 @@ function parsePostHtml(articleInfo: ArticleInfo) {
   }
   let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll('\\x0a', '</br>')}<p>`;
   for (const pidx in picArr) {
-    contentHtml = contentHtml + `<img src='${picArr[pidx]}' >`;
+    contentHtml = contentHtml + `<img src='${picArr[pidx]}' data-src='${picArr[pidx]}' >`;
   }
   contentHtml += '</div>';
   return {
