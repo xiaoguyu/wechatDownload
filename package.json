@@ -1,6 +1,6 @@
 {
   "name": "wechatDownload",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "description": "A minimal Electron application with TypeScript",
   "main": "./out/main/index.js",
   "author": "example.com",
