@@ -39,7 +39,7 @@ Electron + Typescript
 - 批量下载
 
   1. 初次使用请安装证书,
-      
+     
       - 自动安装（仅限window系统）
       
         需要管理员权限（右击软件图标 -> 以管理员身份运行）
@@ -123,3 +123,9 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+## 特别感谢
+
+[![](https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg)](https://www.jetbrains.com/?from=wechatDownload)
+
+感谢 [JetBrains](https://www.jetbrains.com/?from=wechatDownload) 提供的开源开发许可证
