@@ -54,7 +54,7 @@ class StrUtil {
   /*
    * 将字符串转换成文件夹名字允许的格式
    */
-  static cleanDirExpression = /[\\\\/:*?"<>|\\.\\s]/g;
+  static cleanDirExpression = /^\.|\\n|[\\\\/:*?"<>|]/gim;
   public static strToDirName(title: string): string {
     return title.replaceAll(StrUtil.cleanDirExpression, '');
   }

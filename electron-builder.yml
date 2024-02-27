@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   修复海报格式文章判断错误的问题
+   优化特殊页面格式错乱的问题

@@ -785,8 +785,8 @@ class Service {
    */
   // 匹配var create_time = "1699399873" * 1;
   createTimeRegex = /var create_time = "(\d*)" \* 1;/;
-  // 匹配create_time:'2023-11-02 22:51',
-  postCreateTimeRegex = /create_time:'(\d{4}-\d{2}-\d{2}\s\d{1,2}:\d{1,2})'/;
+  // 匹配window.ct = '1695861587',
+  postCreateTimeRegex = /window.ct\s?=\s?'(\d*)'/;
   public matchCreateTime(html: string): Date | undefined {
     let match = this.createTimeRegex.exec(html);
     if (match) {
@@ -794,7 +794,7 @@ class Service {
     }
     match = this.postCreateTimeRegex.exec(html);
     if (match) {
-      return new Date(match[1] + ':00');
+      return new Date(Number(match[1]) * 1000);
     }
     return undefined;
   }

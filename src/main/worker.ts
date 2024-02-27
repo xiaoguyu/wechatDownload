@@ -161,17 +161,22 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   const url = articleInfo.contentUrl;
   const htmlStr = service.prepHtml(articleInfo.html);
   // 提取正文
-  const doc = new JSDOM(htmlStr);
-  const reader = new Readability.Readability(<Document>doc.window.document, { keepClasses: true });
-  let _article = reader.parse();
-  if (!_article) {
-    // 可能是海报格式的文章(https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA)
-    _article = parsePostHtml(articleInfo);
+  /*
+   * 总共有3种格式：
+   * 1.普通格式
+   * 2.海报格式：https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA
+   * 3.纯文字格式：https://mp.weixin.qq.com/s/vLuVL5owS5VdTDmMRzu3vQ
+   */
+  let _article;
+  const $a = cheerio.load(articleInfo.html);
+  if ($a('#js_article').hasClass('share_content_page')) {
+    _article = parsePostHtml(articleInfo, $a);
+  } else if ($a('#js_article').hasClass('page_content')) {
+    _article = parseShortTextHtml(articleInfo, $a);
   } else {
-    const $ = cheerio.load(articleInfo.html);
-    if ($('#js_article').hasClass('share_content_page')) {
-      _article = parsePostHtml(articleInfo);
-    }
+    const doc = new JSDOM(htmlStr);
+    const reader = new Readability.Readability(<Document>doc.window.document, { keepClasses: true });
+    _article = reader.parse();
   }
   if (!_article) {
     resp(NwrEnum.FAIL, '提取正文失败');
@@ -210,7 +215,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
   // 创建保存文件夹
   const timeStr = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd') + '-' : '';
-  const saveDirName = StrUtil.strToDirName(articleInfo.title);
+  const saveDirName = StrUtil.strToDirName(articleInfo.title || '');
   const jsName = 1 == downloadOption.classifyDir ? StrUtil.strToDirName(articleInfo.metaInfo?.jsName || '') : '';
   articleInfo.fileName = saveDirName;
   const savePath = path.join(downloadOption.savePath || '', jsName, timeStr + saveDirName);
@@ -341,8 +346,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
 const picListRegex = /window.picture_page_info_list\s*=\s(\[[\s\S]*\])\.slice/;
 const cdnUrlRegex = /cdn_url:\s?'(.*)',/g;
-function parsePostHtml(articleInfo: ArticleInfo) {
-  const $ = cheerio.load(articleInfo.html);
+// 解析海报格式页面：https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA
+function parsePostHtml(articleInfo: ArticleInfo, $) {
+  // const $ = cheerio.load(articleInfo.html);
   // 获取内容
   const contentText = $('meta[name=description]').attr('content');
   // 获取图片
@@ -363,13 +369,46 @@ function parsePostHtml(articleInfo: ArticleInfo) {
   if (!title || picArr.length == 0) {
     return null;
   }
-  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll('\\x0a', '</br>')}<p>`;
+  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll(/\\x0a|\\n/g, '</br>')}<p>`;
   for (const pidx in picArr) {
     contentHtml = contentHtml + `<img src='${picArr[pidx]}' data-src='${picArr[pidx]}' >`;
   }
   contentHtml += '</div>';
   return {
-    title: title,
+    title: title.replaceAll(/\\x0a|\\n/g, ''),
+    content: contentHtml,
+    textContent: '',
+    length: 0,
+    excerpt: '',
+    byline: '',
+    dir: '',
+    siteName: '',
+    lang: ''
+  };
+}
+
+// 解析短文字格式页面：https://mp.weixin.qq.com/s/vLuVL5owS5VdTDmMRzu3vQ
+// 这种格式没有内容，只有标题
+const shortTitleRegex = /window.msg_title\s?=\s?'(.*?)'/;
+function parseShortTextHtml(articleInfo: ArticleInfo, $) {
+  const shortTitleMatch = shortTitleRegex.exec(articleInfo.html || '');
+  let title;
+  if (shortTitleMatch) {
+    title = shortTitleMatch[1];
+  } else {
+    return null;
+  }
+
+  // 获取内容
+  let contentText = $('meta[name=description]').attr('content');
+  if (!contentText) {
+    contentText = title;
+  }
+  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll(/\\x0a|\\n/g, '</br>')}<p>`;
+
+  contentHtml += '</div>';
+  return {
+    title: title.replaceAll(/\\x0a|\\n/g, ''),
     content: contentHtml,
     textContent: '',
     length: 0,
