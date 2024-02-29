@@ -346,7 +346,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
 const picListRegex = /window.picture_page_info_list\s*=\s(\[[\s\S]*\])\.slice/;
 const cdnUrlRegex = /cdn_url:\s?'(.*)',/g;
-// 解析海报格式页面：https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA
+// 解析海报格式页面：https://mp.weixin.qq.com/s/00XdizbDQtKRWxFv6iGqIA  https://mp.weixin.qq.com/s/fzPkvEyECe-MYE_OTHLS-w
 function parsePostHtml(articleInfo: ArticleInfo, $) {
   // const $ = cheerio.load(articleInfo.html);
   // 获取内容
@@ -365,22 +365,34 @@ function parsePostHtml(articleInfo: ArticleInfo, $) {
     }
   }
   // 标题
-  const title = $('.rich_media_title').text();
+  let title = $('.rich_media_title').text();
+  if (!title) {
+    title = contentText;
+  }
   if (!title || picArr.length == 0) {
     return null;
   }
-  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll(/\\x0a|\\n/g, '</br>')}<p>`;
+  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll(/\\x0a|\\n/g, '</br>')}</p>`;
   for (const pidx in picArr) {
-    contentHtml = contentHtml + `<img src='${picArr[pidx]}' data-src='${picArr[pidx]}' >`;
+    contentHtml = contentHtml + `<p><img src='${picArr[pidx]}' data-src='${picArr[pidx]}' ></p>`;
   }
   contentHtml += '</div>';
+  // 获取作者
+  const nickNameEle = $('.wx_follow_nickname');
+  let byline;
+  if (nickNameEle.length > 1) {
+    byline = nickNameEle.first().text();
+  } else {
+    byline = nickNameEle.text();
+  }
+
   return {
     title: title.replaceAll(/\\x0a|\\n/g, ''),
     content: contentHtml,
     textContent: '',
     length: 0,
     excerpt: '',
-    byline: '',
+    byline: byline,
     dir: '',
     siteName: '',
     lang: ''
@@ -404,7 +416,15 @@ function parseShortTextHtml(articleInfo: ArticleInfo, $) {
   if (!contentText) {
     contentText = title;
   }
-  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll(/\\x0a|\\n/g, '</br>')}<p>`;
+  let contentHtml = `<div id="readability-page-1" class="page"><p>${contentText.replaceAll(/\\x0a|\\n/g, '</br>')}</p>`;
+  // 获取作者
+  const nickNameEle = $('.wx_follow_nickname');
+  let byline;
+  if (nickNameEle.length > 1) {
+    byline = nickNameEle.first().text();
+  } else {
+    byline = nickNameEle.text();
+  }
 
   contentHtml += '</div>';
   return {
@@ -413,7 +433,7 @@ function parseShortTextHtml(articleInfo: ArticleInfo, $) {
     textContent: '',
     length: 0,
     excerpt: '',
-    byline: '',
+    byline: byline,
     dir: '',
     siteName: '',
     lang: ''
