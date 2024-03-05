@@ -54,9 +54,13 @@ class StrUtil {
   /*
    * 将字符串转换成文件夹名字允许的格式
    */
-  static cleanDirExpression = /^\.|\\n|[\\\\/:*?"<>|]/gim;
+  static cleanDirExpression = /^\.|\n|\\n|[\\\\/:*?"<>|]/gim;
   public static strToDirName(title: string): string {
-    return title.replaceAll(StrUtil.cleanDirExpression, '');
+    const cleanTitle = title.replaceAll(StrUtil.cleanDirExpression, '');
+    if (cleanTitle.length > 250) {
+      return cleanTitle.substring(0, 250);
+    }
+    return cleanTitle;
   }
 
   /*

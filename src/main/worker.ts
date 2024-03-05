@@ -220,7 +220,12 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   articleInfo.fileName = saveDirName;
   const savePath = path.join(downloadOption.savePath || '', jsName, timeStr + saveDirName);
   if (!fs.existsSync(savePath)) {
-    fs.mkdirSync(savePath, { recursive: true });
+    try {
+      fs.mkdirSync(savePath, { recursive: true });
+    } catch (err) {
+      resp(NwrEnum.FAIL, `【${saveDirName}】创建失败，跳过此文章`);
+      return;
+    }
   } else {
     // 跳过已有文章
     if (downloadOption.skinExist && downloadOption.skinExist == 1) {
@@ -446,6 +451,7 @@ function parseShortTextHtml(articleInfo: ArticleInfo, $) {
  * @param htmlStr 微信文章网页源码
  * @param byline Readability解析出来的作者名
  */
+let totalJsName;
 function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
   // 判断是否需要下载元数据
   // if (1 != downloadOption.saveMeta) {
@@ -453,7 +459,16 @@ function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
   // }
   const $meta = cheerio.load(htmlStr);
   const authorName = getEleText($meta('#js_author_name'));
-  const jsName = getEleText($meta('#js_name'));
+  // 缓存公众号名字，防止特殊页面获取不到
+  let jsName;
+  if (dlEvent == DlEventEnum.BATCH_WEB) {
+    if (!totalJsName) {
+      totalJsName = getEleText($meta('#js_name'));
+    }
+    jsName = totalJsName;
+  } else {
+    jsName = getEleText($meta('#js_name'));
+  }
   const copyrightFlg = $meta('#copyright_logo')?.text() ? true : false;
   const publicTime = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd HH:mm') : '';
   const ipWording = service.matchIpWording(htmlStr);
@@ -948,10 +963,13 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
   resp(NwrEnum.SUCCESS, `正在获取文章列表，目前数量：${articleCount[0]}`);
   // 单线程下载
   if (downloadOption.threadType == 'single') {
-    for (const article of articleArr) {
-      await axiosDlOne(article);
-      // 下载间隔
-      await sleep(downloadOption.dlInterval);
+    for (let i = 0; i < articleArr.length; i++) {
+      const article = articleArr.shift();
+      if (article) {
+        await axiosDlOne(article);
+        // 下载间隔
+        await sleep(downloadOption.dlInterval);
+      }
     }
   } else {
     // 多线程下载

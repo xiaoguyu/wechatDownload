@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   修复早期海报格式文章无法下载的问题
+   修复标题异常导致闪退。优化单线程下载。
