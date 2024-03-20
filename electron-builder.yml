@@ -48,4 +48,6 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   修复标题异常导致闪退。优化单线程下载。
+   修改了表结构，请去源码目录/doc/mysql.sql查看。
+   新增过滤规则，支持文章和作者关键词过滤。
+   修复音频无法下载的问题。

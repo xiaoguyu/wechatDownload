@@ -97,6 +97,21 @@ class HttpUtil {
     }
     return null;
   }
+
+  // 从url中获取文件类型后缀
+  // 例如 url = http://www.baidu.com/ddd.png?id=12.22
+  public static getSuffByUrl(url: string): string | null {
+    const questIdx = url.lastIndexOf('?');
+    const dotIdx = url.lastIndexOf('.', questIdx > 0 ? questIdx : url.length);
+    if (dotIdx <= 0) {
+      return null;
+    }
+    const suff = url.substring(dotIdx + 1, questIdx > 0 ? questIdx : url.length);
+    if (suff?.length > 5) {
+      return null;
+    }
+    return suff;
+  }
 }
 
 class DateUtil {

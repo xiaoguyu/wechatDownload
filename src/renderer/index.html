@@ -49,6 +49,10 @@
               <div>下载来源</div>
               <input type="radio" name="dlSource" value="web" />网络 <input type="radio" name="dlSource" value="db" />数据库
             </div>
+            <div class="div-border" title="json格式" style="padding-right: 15px;">
+              <div>过滤规则：</div>
+              <input name="filterRule" style="width: 100%;" />
+            </div>
             <div class="multi">
               <div class="multi-item">
                 <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
@@ -56,7 +60,7 @@
                 <div class="item"><input type="checkbox" name="dlPdf" />下载为pdf</div>
                 <div class="item"><input type="checkbox" name="dlMysql" />保存至Mysql</div>
                 <div title="不勾选则覆盖现有文章" class="item"><input type="checkbox" name="skinExist" />跳过现有文章</div>
-                <div title="包含作者、公号名、ip地址等" class="item"><input type="checkbox" name="saveMeta" />保存元数据</div>
+                <div title="包含作者、公号名、ip地址、封面等" class="item"><input type="checkbox" name="saveMeta" />保存元数据</div>
               </div>
               <div class="multi-item">
                 <div class="item"><input type="checkbox" name="dlAudio" />下载音频到本地</div>

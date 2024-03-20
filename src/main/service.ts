@@ -22,6 +22,8 @@ class GzhInfo {
 class ArticleInfo {
   // 标题
   public title?: string;
+  // 摘要
+  public digest?: string;
   // 保存文件名（因为有些标题不一定符合文件名的格式）
   public fileName?: string;
   // 时间
@@ -30,6 +32,8 @@ class ArticleInfo {
   public contentUrl: string;
   // html源码
   public html?: string;
+  // 封面
+  public cover?: string;
   // 作者
   public author?: string;
   // 元数据
@@ -116,6 +120,20 @@ class DownloadOption {
   public mysqlUser?: string;
   // mysql配置-密码
   public mysqlPassword?: string;
+  // 是否清洗markdown，并保存数据库
+  public cleanMarkdown?: number;
+  // 过滤规则
+  public filterRule?: string;
+}
+class FilterRuleInfo {
+  // 标题包含
+  public titleInclude: string[] = [];
+  // 标题不包含
+  public titleExclude: string[] = [];
+  // 作者包含
+  public authInclude: string[] = [];
+  // 作者不包含
+  public authExclude: string[] = [];
 }
 // nodeWorker交互使用的通用消息响应类
 class NodeWorkerResponse {
@@ -197,6 +215,7 @@ class Service {
         break;
       case 'diy':
         if (startDateStr) {
+          startDate.setHours(0, 0, 0, 0);
           startDate = new Date(startDateStr);
         }
         if (endDateStr) {
@@ -211,7 +230,7 @@ class Service {
   /*
    * 预处理微信公号文章html
    */
-  public prepHtml(html: string): string {
+  public prepHtml(html: string): any {
     const $ = cheerio.load(html);
     // 处理图片：1.将data-src赋值给src 2.提取style中的宽高
     const imgArr = $('img');
@@ -229,7 +248,7 @@ class Service {
         }
       }
     });
-    return $.html();
+    return $;
   }
   /*
    * 美化保存成html的样式
@@ -740,6 +759,24 @@ class Service {
 
     return turndownService;
   }
+  public getTmpHtml(html: string): string {
+    const $ = cheerio.load(html);
+    this.replaceSrc($, $('img[tmpsrc]'));
+    this.replaceSrc($, $('source[tmpsrc]'));
+
+    return $.html();
+  }
+
+  private replaceSrc($, eleArr) {
+    for (const elem of eleArr) {
+      const $ele = $(elem);
+      const tmpsrc = $ele.attr('tmpsrc');
+      if (tmpsrc && tmpsrc.length > 0) {
+        $ele.attr('src', tmpsrc);
+      }
+    }
+  }
+
   /*
    * 将json转成ArticleInfo
    */
@@ -750,6 +787,8 @@ class Service {
       const article: ArticleInfo = { title: title, datetime: dateTime, contentUrl: contentUrl };
       article.author = appMsgExtInfo['author'];
       article.copyrightStat = appMsgExtInfo['copyright_stat'];
+      article.digest = appMsgExtInfo['digest'];
+      article.cover = appMsgExtInfo['cover'];
       articleArr.push(article);
     }
   }
@@ -760,6 +799,8 @@ class Service {
     const article = new ArticleInfo(dbObj['title'], dbObj['create_time'], dbObj['content_url']);
     article.author = dbObj['author'];
     article.html = dbObj['content'];
+    article.digest = dbObj['digest'];
+    article.cover = dbObj['cover'];
     if (1 == downloadOption.dlComment) article.commentList = JSON.parse(dbObj['comm']);
     if (1 == downloadOption.dlCommentReply) article.replyDetailMap = JSON.parse(dbObj['comm_reply']);
     return article;
@@ -811,4 +852,4 @@ class Service {
   }
 }
 
-export { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };
+export { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, FilterRuleInfo, NodeWorkerResponse, Service, NwrEnum, DlEventEnum };

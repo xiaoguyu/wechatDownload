@@ -1,7 +1,7 @@
 import { parentPort, workerData } from 'worker_threads';
 import logger from './logger';
-import { StrUtil, FileUtil, DateUtil } from './utils';
-import { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
+import { StrUtil, FileUtil, DateUtil, HttpUtil } from './utils';
+import { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, FilterRuleInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
 import axiosRetry from 'axios-retry';
 import md5 from 'blueimp-md5';
@@ -30,7 +30,8 @@ const COMMENT_REPLY_URL = 'https://mp.weixin.qq.com/mp/appmsg_comment?action=get
 const QQ_MUSIC_INFO_URL = 'https://mp.weixin.qq.com/mp/qqmusic?action=get_song_info';
 // 插入数据库的sql
 const TABLE_NAME = workerData.tableName;
-const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat, comm, comm_reply) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
+// const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat, comm, comm_reply) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
+const INSERT_SQL = `INSERT INTO ${TABLE_NAME} ( title, content, author, content_url, create_time, copyright_stat, comm, comm_reply, digest, cover, js_name, md_content) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title = ? , create_time=?`;
 const SELECT_SQL = `SELECT title, content, author, content_url, create_time, comm, comm_reply FROM ${TABLE_NAME} WHERE create_time >= ? AND create_time <= ?`;
 
 // 数据库连接配置
@@ -159,7 +160,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 预处理微信公号文章html
   if (!articleInfo.html) return;
   const url = articleInfo.contentUrl;
-  const htmlStr = service.prepHtml(articleInfo.html);
+  const $source = service.prepHtml(articleInfo.html);
   // 提取正文
   /*
    * 总共有3种格式：
@@ -168,14 +169,34 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
    * 3.纯文字格式：https://mp.weixin.qq.com/s/vLuVL5owS5VdTDmMRzu3vQ
    */
   let _article;
-  const $a = cheerio.load(articleInfo.html);
-  if ($a('#js_article').hasClass('share_content_page')) {
-    _article = parsePostHtml(articleInfo, $a);
-  } else if ($a('#js_article').hasClass('page_content')) {
-    _article = parseShortTextHtml(articleInfo, $a);
+  if ($source('#js_article').hasClass('share_content_page')) {
+    _article = parsePostHtml(articleInfo, $source);
+  } else if ($source('#js_article').hasClass('page_content')) {
+    _article = parseShortTextHtml(articleInfo, $source);
   } else {
-    const doc = new JSDOM(htmlStr);
+    const doc = new JSDOM($source.html());
     const reader = new Readability.Readability(<Document>doc.window.document, { keepClasses: true });
+    // #issues/45 因为文章会出现 selection或者p标签包含着mpvoice，但是里面又没有文字，会被Readability自动删除，需要修改源码
+    // 修改Readability的源码(不推荐这种做法)
+    (reader as any)._isElementWithoutContent = function (node) {
+      return node.getElementsByTagName('mpvoice').length == 0 && node.nodeType === 1 && node.textContent.trim().length == 0 && (node.children.length == 0 || node.children.length == node.getElementsByTagName('br').length + node.getElementsByTagName('hr').length);
+    };
+    (reader as any)._removeNodes = function (nodeList, filterFn) {
+      // Avoid ever operating on live node lists.
+      if (this._docJSDOMParser && nodeList._isLiveNodeList) {
+        throw new Error('Do not pass live node lists to _removeNodes');
+      }
+      for (let i = nodeList.length - 1; i >= 0; i--) {
+        const node = nodeList[i];
+        const parentNode = node.parentNode;
+        if (parentNode) {
+          const mpvoiceCount = parentNode.getElementsByTagName('mpvoice').length;
+          if (!filterFn || (filterFn.call(this, node, i, nodeList) && mpvoiceCount.length == 0)) {
+            parentNode.removeChild(node);
+          }
+        }
+      }
+    };
     _article = reader.parse();
   }
   if (!_article) {
@@ -205,10 +226,17 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
 
   if (!articleInfo.title) articleInfo.title = article.title;
   if (!articleInfo.author) articleInfo.author = article.byline;
-  if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime(htmlStr);
+  if (!articleInfo.datetime) articleInfo.datetime = service.matchCreateTime($source.html());
 
   // 提取元数据
-  parseMeta(articleInfo, htmlStr, article.byline);
+  parseMeta(articleInfo, $source, article.byline);
+
+  // 过滤规则
+  const { flgFilter, filterMsg } = doFilter(articleInfo);
+  if (flgFilter) {
+    resp(NwrEnum.SUCCESS, `【${article.title}】已过滤：${filterMsg}`);
+    return;
+  }
 
   // 下载评论
   await downloadComment(articleInfo);
@@ -242,8 +270,9 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 判断是否需要下载图片
   let imgCount = 0;
   const $ = cheerio.load(article.content);
+
   if (1 == downloadOption.dlImg) {
-    await downloadImgToHtml($, savePath, tmpPath).then((obj) => {
+    await downloadImgToHtml($, savePath, tmpPath, articleInfo).then((obj) => {
       imgCount = obj.imgCount;
     });
   }
@@ -264,27 +293,12 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   readabilityPage.prepend(`<h1>${article.title}</h1>`);
 
   const proArr: Promise<void>[] = [];
-  // 判断是否保存到数据库
-  if (1 == downloadOption.dlMysql && CONNECTION_STATE && saveToDb) {
-    proArr.push(
-      new Promise((resolve, _reject) => {
-        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.title, articleInfo.datetime];
-        CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
-          if (err) {
-            logger.error('mysql插入失败', err);
-          } else {
-            resp(NwrEnum.SUCCESS, `【${article.title}】保存Mysql完成`);
-          }
-          resolve();
-        });
-      })
-    );
-  }
+
   // 判断是否保存markdown
   if (1 == downloadOption.dlMarkdown) {
-    const markdownStr = turndownService.turndown($.html());
     proArr.push(
       new Promise((resolve, _reject) => {
+        const markdownStr = turndownService.turndown($.html());
         // 添加评论
         const commentStr = service.getMarkdownComment(articleInfo.commentList, articleInfo.replyDetailMap);
         fs.writeFile(path.join(savePath, `${articleInfo.fileName}.md`), markdownStr + commentStr, () => {
@@ -296,17 +310,17 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
   // 判断是否保存html
   if (1 == downloadOption.dlHtml) {
-    const $html = cheerio.load($.html());
-    // 添加样式美化
-    const headEle = $html('head');
-    headEle.append(service.getArticleCss());
-    // 添加评论数据
-    if (articleInfo.commentList) {
-      headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap));
-    }
-    const htmlReadabilityPage = $html('#readability-page-1');
     proArr.push(
       new Promise((resolve, _reject) => {
+        const $html = cheerio.load($.html());
+        // 添加样式美化
+        const headEle = $html('head');
+        headEle.append(service.getArticleCss());
+        // 添加评论数据
+        if (articleInfo.commentList) {
+          headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap));
+        }
+        const htmlReadabilityPage = $html('#readability-page-1');
         // 评论的div块
         htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
         fs.writeFile(path.join(savePath, `${articleInfo.fileName}.html`), $html.html(), () => {
@@ -318,17 +332,17 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   }
   // 判断是否保存pdf
   if (1 == downloadOption.dlPdf) {
-    const $pdf = cheerio.load($.html());
-    // 添加样式美化
-    const headEle = $pdf('head');
-    headEle.append(service.getArticleCss());
-    // 添加评论数据
-    if (articleInfo.commentList) {
-      headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap, true));
-    }
-    const htmlReadabilityPage = $pdf('#readability-page-1');
     proArr.push(
       new Promise((resolve, _reject) => {
+        const $pdf = cheerio.load($.html());
+        // 添加样式美化
+        const headEle = $pdf('head');
+        headEle.append(service.getArticleCss());
+        // 添加评论数据
+        if (articleInfo.commentList) {
+          headEle.after(service.getHtmlComment(articleInfo.commentList, articleInfo.replyDetailMap, true));
+        }
+        const htmlReadabilityPage = $pdf('#readability-page-1');
         // 评论的div块
         htmlReadabilityPage.after('<div class="foot"></div><div class="dialog"><div class="dcontent"><div class="aclose"><span>留言</span><a class="close"href="javascript:closeDialog();">&times;</a></div><div class="contain"><div class="d-top"></div><div class="all-deply"></div></div></div></div>');
         fs.writeFile(path.join(savePath, 'pdf.html'), $pdf.html(), () => {
@@ -338,6 +352,31 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
           resp(NwrEnum.PDF, '保存pdf', new PdfInfo(articleId, article.title, savePath, articleInfo.fileName));
           // 保存回调钩子，等待main线程保存pdf完成
           PDF_RESOLVE_MAP.set(articleId, resolve);
+        });
+      })
+    );
+  }
+
+  // 判断是否保存到数据库
+  if (1 == downloadOption.dlMysql && CONNECTION_STATE && saveToDb) {
+    proArr.push(
+      new Promise((resolve, _reject) => {
+        // 是否要清洗markdown并保存数据库（这是个人需求）
+        let markdownStr: string = '';
+        if (1 == downloadOption.cleanMarkdown) {
+          const cleanHtml = service.getTmpHtml($.html());
+
+          markdownStr = turndownService.turndown(cleanHtml);
+        }
+
+        const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.digest, articleInfo.cover, articleInfo.metaInfo?.jsName, markdownStr, articleInfo.title, articleInfo.datetime];
+        CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
+          if (err) {
+            logger.error('mysql插入失败', err);
+          } else {
+            resp(NwrEnum.SUCCESS, `【${article.title}】保存Mysql完成`);
+          }
+          resolve();
         });
       })
     );
@@ -452,13 +491,12 @@ function parseShortTextHtml(articleInfo: ArticleInfo, $) {
  * @param byline Readability解析出来的作者名
  */
 let totalJsName;
-function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
+function parseMeta(articleInfo: ArticleInfo, $meta: any, byline?: string) {
   // 判断是否需要下载元数据
   // if (1 != downloadOption.saveMeta) {
   //   return;
   // }
-  const $meta = cheerio.load(htmlStr);
-  const authorName = getEleText($meta('#js_author_name'));
+  const authorName = articleInfo.author ? articleInfo.author : getEleText($meta('#js_author_name'));
   // 缓存公众号名字，防止特殊页面获取不到
   let jsName;
   if (dlEvent == DlEventEnum.BATCH_WEB) {
@@ -469,9 +507,21 @@ function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
   } else {
     jsName = getEleText($meta('#js_name'));
   }
+  // 封面
+  let cover: string | undefined;
+  if (!articleInfo.cover) {
+    const coverEles = $meta('meta[property=og:image]');
+    if (coverEles) {
+      if (coverEles.length > 1) {
+        cover = coverEles.first().attr('content');
+      } else {
+        cover = coverEles.attr('content');
+      }
+    }
+  }
   const copyrightFlg = $meta('#copyright_logo')?.text() ? true : false;
   const publicTime = articleInfo.datetime ? DateUtil.format(articleInfo.datetime, 'yyyy-MM-dd HH:mm') : '';
-  const ipWording = service.matchIpWording(htmlStr);
+  const ipWording = service.matchIpWording($meta.html());
   const articleMeta = new ArticleMeta();
   articleMeta.copyrightFlg = copyrightFlg;
   articleMeta.author = authorName ? authorName : byline;
@@ -479,6 +529,7 @@ function parseMeta(articleInfo: ArticleInfo, htmlStr: string, byline?: string) {
   articleMeta.publicTime = publicTime;
   articleMeta.ipWording = ipWording;
   articleInfo.metaInfo = articleMeta;
+  articleInfo.cover = cover;
 }
 
 function getEleText(ele: any): string {
@@ -490,6 +541,76 @@ function getEleText(ele: any): string {
     }
   }
   return '';
+}
+
+// 根据过滤规则过滤文章
+function doFilter(articleInfo: ArticleInfo): { flgFilter: boolean; filterMsg: string } {
+  const filterRuleStr = downloadOption.filterRule;
+  if (!filterRuleStr) {
+    return { flgFilter: false, filterMsg: '' };
+  }
+
+  const filterRule: FilterRuleInfo = parseFilterInfo(filterRuleStr);
+  if (filterRule.titleInclude.length > 0 && !isInclude(articleInfo.title, filterRule.titleInclude)[0]) {
+    return { flgFilter: true, filterMsg: '标题未包含关键词' };
+  }
+
+  if (filterRule.authInclude.length > 0 && !isInclude(articleInfo.author, filterRule.authInclude)[0]) {
+    return { flgFilter: true, filterMsg: '作者未包含关键词' };
+  }
+
+  const [flgTitleInclude, titleExcludeWord] = isInclude(articleInfo.title, filterRule.titleExclude);
+  if (flgTitleInclude) {
+    return { flgFilter: true, filterMsg: `标题包含排除关键词 ${titleExcludeWord}` };
+  }
+
+  const [flgAuthInclude, authExcludeWord] = isInclude(articleInfo.author, filterRule.authExclude);
+  if (flgAuthInclude) {
+    return { flgFilter: true, filterMsg: `作者包含排除关键词 ${authExcludeWord}` };
+  }
+
+  return { flgFilter: false, filterMsg: '' };
+}
+/**
+ * 判断内容是否包含关键词
+ * @param content 内容
+ * @param include 包含关键词
+ */
+function isInclude(content: string | undefined, include: string[]): [boolean, string] {
+  if (!content) return [false, ''];
+  for (const includeItem of include) {
+    if (content.includes(includeItem)) {
+      return [true, includeItem];
+    }
+  }
+  return [false, ''];
+}
+
+function parseFilterInfo(filterRuleStr: string): FilterRuleInfo {
+  const filterRuleInfo = new FilterRuleInfo();
+  const filterRule = JSON.parse(filterRuleStr);
+  if (filterRule.title) {
+    const titleInclude = filterRule.title.include;
+    if (titleInclude && titleInclude.length > 0) {
+      filterRuleInfo.titleInclude = titleInclude;
+    }
+    const titleExclude = filterRule.title.exclude;
+    if (titleExclude && titleExclude.length > 0) {
+      filterRuleInfo.titleExclude = titleExclude;
+    }
+  }
+
+  if (filterRule.auth) {
+    const authInclude = filterRule.auth.include;
+    if (authInclude && authInclude.length > 0) {
+      filterRuleInfo.authInclude = authInclude;
+    }
+    const authExclude = filterRule.auth.exclude;
+    if (authExclude && authExclude.length > 0) {
+      filterRuleInfo.authExclude = authExclude;
+    }
+  }
+  return filterRuleInfo;
 }
 
 /*
@@ -522,7 +643,7 @@ async function downloadComment(articleInfo: ArticleInfo) {
     // 评论列表
     let commentList;
     // 评论回复map
-    const replyDetailMap = new Map();
+    let replyDetailMap;
     await axios
       .get(COMMENT_LIST_URL, {
         params: {
@@ -556,6 +677,7 @@ async function downloadComment(articleInfo: ArticleInfo) {
 
     // 处理评论的回复
     if (1 == downloadOption.dlCommentReply && commentList) {
+      replyDetailMap = new Map();
       for (const commentItem of commentList) {
         const replyInfo = commentItem.reply_new;
         if (replyInfo.reply_total_cnt > replyInfo.reply_list.length) {
@@ -602,7 +724,7 @@ async function downloadComment(articleInfo: ArticleInfo) {
  * savePath: 保存文章的路径(已区分文章),例如: D://savePath//测试文章1
  * tmpPath： 缓存路径(已区分文章)，例如：D://tmpPathPath//6588aec6b658b2c941f6d51d0b1691b9
  */
-async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<{ imgCount: number }> {
+async function downloadImgToHtml($, savePath: string, tmpPath: string, articleInfo: ArticleInfo): Promise<{ imgCount: number }> {
   const imgArr = $('img');
   const awaitArr: Promise<void>[] = [];
   let imgCount = 0;
@@ -615,16 +737,21 @@ async function downloadImgToHtml($, savePath: string, tmpPath: string): Promise<
   imgArr.each(function (i, elem) {
     const $ele = $(elem);
     // 文件后缀
-    const fileSuf = $ele.attr('data-type') || 'jpg';
+    let fileSuf = $ele.attr('data-type');
     // 文件url
-    const fileUrl = $ele.attr('data-src');
+    const fileUrl = $ele.attr('data-src') || $ele.attr('src');
     if (fileUrl) {
+      if (!fileSuf) {
+        fileSuf = HttpUtil.getSuffByUrl(fileUrl) || 'jpg';
+      }
+
       imgCount++;
       const tmpFileName = `${md5(fileUrl)}.${fileSuf}`;
       const fileName = `${i}.${fileSuf}`;
       const dlPromise = FileUtil.downloadFile(fileUrl, tmpPath, tmpFileName).then((_fileName) => {
-        $ele.attr('src', path.join('img', fileName).replaceAll('\\', '/'));
         // 图片下载完成之，将图片从缓存文件夹复制到需要保存的文件夹
+        $ele.attr('src', path.join('img', fileName).replaceAll('\\', '/'));
+        $ele.attr('tmpsrc', path.join('md', md5(articleInfo.contentUrl), tmpFileName).replaceAll('\\', '/'));
         const resolveSavePath = path.join(imgPath, fileName);
         if (!fs.existsSync(resolveSavePath)) {
           // 复制
@@ -655,26 +782,27 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
   if (musicArr.length == 0) {
     musicArr = $('qqmusic');
   }
-  const mpvoiceArr = $('mp-common-mpaudio');
+  const compvoiceArr = $('mp-common-mpaudio');
+  const mpvoiceArr = $('mpvoice');
 
   // 创建歌曲的文件夹
   const songPath = path.join(savePath, 'song');
-  if ((musicArr.length > 0 || mpvoiceArr.length > 0) && !fs.existsSync(songPath)) {
+  if ((musicArr.length > 0 || mpvoiceArr.length > 0 || compvoiceArr.length > 0) && !fs.existsSync(songPath)) {
     fs.mkdirSync(songPath, { recursive: true });
   }
 
   const awaitArr: Promise<void>[] = [];
   // 处理QQ音乐
   const gzhInfo = articleInfo.gzhInfo;
-  if (gzhInfo) {
-    for (let i = 0; i < musicArr.length; i++) {
-      const $ele = $(musicArr[i]);
-      // 歌名
-      const musicName = $ele.attr('music_name');
-      // 歌手名
-      const singer = $ele.attr('singer');
-      // 歌曲id
-      const mid = $ele.attr('mid');
+  for (let i = 0; i < musicArr.length; i++) {
+    const $ele = $(musicArr[i]);
+    // 歌名
+    const musicName = $ele.attr('music_name');
+    // 歌手名
+    const singer = $ele.attr('singer');
+    // 歌曲id
+    const mid = $ele.attr('mid');
+    if (gzhInfo) {
       // QQ音乐接口获取歌曲信息
       await axios
         .get(QQ_MUSIC_INFO_URL, {
@@ -693,12 +821,20 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
           if (songSrc) {
             const tmpFileName = `${mid}.m4a`;
             const fileName = `public_${i}.m4a`;
-            awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName, singer));
+            awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName, articleInfo, singer));
           }
         })
         .catch((error) => {
           logger.error(`音频下载失败，mid:${mid}`, error);
         });
+    } else {
+      const tmpFileName = `${mid}.m4a`;
+      const mypath = path.resolve(tmpPath, tmpFileName);
+      // 文件存在就继续
+      if (fs.existsSync(mypath)) {
+        const fileName = `public_${i}.m4a`;
+        awaitArr.push(downloadSong($ele, musicName, '', songPath, tmpPath, tmpFileName, fileName, articleInfo, singer));
+      }
     }
   }
   // 处理作者录制的音频
@@ -712,7 +848,20 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
     const tmpFileName = `${mid}.mp3`;
     const fileName = `person_${j}.mp3`;
     // 下载音频到本地
-    awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName));
+    awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName, articleInfo));
+  }
+
+  for (let j = 0; j < compvoiceArr.length; j++) {
+    const $ele = $(compvoiceArr[j]);
+    // 歌名
+    const musicName = $ele.attr('name');
+    // 歌曲id
+    const mid = $ele.attr('voice_encode_fileid');
+    const songSrc = `https://res.wx.qq.com/voice/getvoice?mediaid=${mid}`;
+    const tmpFileName = `${mid}.mp3`;
+    const fileName = `person_${j}.mp3`;
+    // 下载音频到本地
+    awaitArr.push(downloadSong($ele, musicName, songSrc, songPath, tmpPath, tmpFileName, fileName, articleInfo));
   }
 
   for (const dlPromise of awaitArr) {
@@ -730,7 +879,7 @@ async function convertAudio($, savePath: string, tmpPath: string, articleInfo: A
  * fileName：歌曲文件名(html中的名字)
  * singer：歌手
  */
-async function downloadSong($ele, musicName: string, songSrc: string, songPath: string, tmpPath: string, tmpFileName: string, fileName: string, singer?: string): Promise<void> {
+async function downloadSong($ele, musicName: string, songSrc: string, songPath: string, tmpPath: string, tmpFileName: string, fileName: string, articleInfo: ArticleInfo, singer?: string): Promise<void> {
   if (1 == downloadOption.dlAudio) {
     resp(NwrEnum.SUCCESS, `正在下载歌曲【${musicName}】...`);
     await FileUtil.downloadFile(songSrc, tmpPath, tmpFileName).then((_fileName) => {
@@ -741,20 +890,22 @@ async function downloadSong($ele, musicName: string, songSrc: string, songPath: 
         fs.copyFileSync(path.join(tmpPath, _fileName), resolveSavePath);
       }
       songSrc = path.join('song', fileName).replaceAll('\\', '/');
-      addSongDiv($ele, musicName, songSrc, singer);
+      const tmpSongSrc = path.join('md', md5(articleInfo.contentUrl), tmpFileName).replaceAll('\\', '/');
+      addSongDiv($ele, musicName, songSrc, tmpSongSrc, singer);
       resp(NwrEnum.SUCCESS, `歌曲【${musicName}】下载完成...`);
     });
   } else {
-    addSongDiv($ele, musicName, songSrc, singer);
+    addSongDiv($ele, musicName, songSrc, '', singer);
   }
 }
 /*
  * 添加音频展示的div
  * musicName：音乐名
  * songSrc：歌曲url
+ * tmpSongSrc：缓存路径的歌曲url
  * singer：歌手
  */
-function addSongDiv($ele, musicName: string, songSrc: string, singer?: string) {
+function addSongDiv($ele, musicName: string, songSrc: string, tmpSongSrc: string, singer?: string) {
   $ele.after(`
   <div class="music-div">
     <div>
@@ -763,7 +914,7 @@ function addSongDiv($ele, musicName: string, songSrc: string, singer?: string) {
     </div>
     <div class="audio-dev">
       <audio controls="controls" loop="loop">
-        <source src="${songSrc}" type="audio/mpeg"></source>
+        <source src="${songSrc}" tmpsrc="${tmpSongSrc}" type="audio/mpeg"></source>
       </audio>
     </div>
   </div>

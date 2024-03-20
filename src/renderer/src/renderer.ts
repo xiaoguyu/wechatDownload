@@ -227,6 +227,16 @@ function addInputEvent(selectPath: string) {
           }
           mysqlOptDiv!.style.display = 'none';
         }
+      } else if (inputEle.name == 'filterRule') {
+        // 过滤规则
+        try {
+          JSON.parse(inputEle.value);
+        } catch (error) {
+          window.electronApi.showMessageBox({
+            type: 'error',
+            message: '过滤规则格式错误'
+          });
+        }
       }
     };
   });
