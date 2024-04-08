@@ -4,7 +4,7 @@
 
 此分支已废弃。使用原生HTML + CJS，新版已迁移至VUE + ESM
 
-详情请查看master分支
+详情请查看mian分支
 
 ## 前言
 
