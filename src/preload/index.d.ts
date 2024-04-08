@@ -1,11 +1,9 @@
-import { OpenDialogOptions, MessageBoxOptions } from 'electron';
 import { ElectronAPI } from '@electron-toolkit/preload';
 
 declare global {
   interface Window {
     electron: ElectronAPI;
-    api: unknown;
-    electronApi: {
+    api: {
       /*** render->main ***/
       // 安装证书
       installLicence();
@@ -57,7 +55,7 @@ declare global {
       /*
        * 发送下载进度
        */
-      downloadProgress(callback: (event: IpcRendererEvent, msg: any) => void);
+      downloadProgress(callback: (event: IpcRendererEvent, msg: ProgressInfo) => void);
     };
   }
 }

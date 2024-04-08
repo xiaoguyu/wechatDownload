@@ -1,7 +1,5 @@
-/// <reference types="electron-vite/node" />
-
 import { app, dialog, shell, ipcMain, BrowserWindow, OpenDialogOptions, MessageBoxOptions } from 'electron';
-import { electronApp, is } from '@electron-toolkit/utils';
+import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 import Store from 'electron-store';
 import * as mysql from 'mysql2';
 import * as AnyProxy from 'anyproxy';
@@ -12,14 +10,23 @@ import logger from './logger';
 import { GzhInfo, ArticleInfo, PdfInfo, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
 import creatWorker from './worker?nodeWorker';
 import * as fs from 'fs';
+import icon from '../../resources/icon.png?asset';
+import * as child_process from 'child_process';
+import * as iconv from 'iconv-lite';
 
-const _AnyProxy = require('anyproxy');
-const exec = require('child_process').exec;
-const iconv = require('iconv-lite');
+import electronUpdater, { type AppUpdater, type UpdateInfo } from 'electron-updater';
+
+export function getAutoUpdater(): AppUpdater {
+  // Using destructuring to access autoUpdater due to the CommonJS module of 'electron-updater'.
+  // It is a workaround for ESM compatibility issues, see https://github.com/electron-userland/electron-builder/issues/7976.
+  const { autoUpdater } = electronUpdater;
+  return autoUpdater;
+}
+const autoUpdater = getAutoUpdater();
+
+const exec = child_process.exec;
 const store = new Store();
 // const service = new Service();
-
-import { autoUpdater, UpdateInfo } from 'electron-updater';
 
 // 代理
 let PROXY_SERVER: AnyProxy.ProxyServer;
@@ -40,16 +47,14 @@ function createWindow(): void {
     height: 680,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux'
-      ? {
-          icon: path.join(__dirname, '../../build/icon.png')
-        }
-      : {}),
+    ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       sandbox: false
     }
   });
+
+  MAIN_WINDOW.setMenu(null);
 
   MAIN_WINDOW.on('ready-to-show', () => {
     MAIN_WINDOW.show();
@@ -76,6 +81,13 @@ app.whenReady().then(() => {
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.javaedit');
+
+  // Default open or close DevTools by F12 in development
+  // and ignore CommandOrControl + R in production.
+  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window);
+  });
 
   // 安装证书
   ipcMain.on('install-licence', () => {
@@ -338,8 +350,9 @@ async function monitorLimitArticle() {
   // 开启代理
   AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001');
   AnyProxy.utils.systemProxyMgr.enableGlobalProxy('127.0.0.1', '8001', 'https');
-  outputLog('代理开启成功，准备批量下载...');
+  outputLog('代理开启成功，准备监控下载...');
   outputLog('请在微信打开需要下载的文章，可打开多篇文章', true);
+  outputLog('<p>最后再点击一次 <strong>监控下载</strong> 按钮即可开始下载</p>', true, true);
 }
 
 async function stopMonitorLimitArticle() {
@@ -542,7 +555,7 @@ function setDefaultSetting() {
     // 在安装目录下创建文章的保存路径
     savePath: path.join(app.getPath('userData'), 'savePath'),
     // CA证书路径
-    caPath: _AnyProxy.utils.certMgr.getRootDirPath(),
+    caPath: (AnyProxy as any).utils.certMgr.getRootDirPath(),
     // mysql配置-端口
     mysqlHost: 'localhost',
     mysqlPort: 3306

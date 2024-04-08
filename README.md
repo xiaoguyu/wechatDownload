@@ -12,7 +12,7 @@
 
 ### 技术栈
 
-Electron + Typescript
+Electron + Typescript + VUE3
 
 ### 原理
 

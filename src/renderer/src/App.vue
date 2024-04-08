@@ -1,0 +1,42 @@
+<script setup lang="ts">
+import { ref } from 'vue';
+import Home from './views/Home.vue';
+import Setting from './views/Setting.vue';
+
+const menuIdx = ref('1');
+function changeMenuIdx(index) {
+  menuIdx.value = index;
+}
+</script>
+
+<template>
+  <el-menu mode="horizontal" background-color="#545c64" text-color="#fff" active-text-color="#ffd04b" class="my-menu" :default-active="menuIdx" @select="changeMenuIdx">
+    <el-menu-item index="1">主页面</el-menu-item>
+    <el-menu-item index="2">设置中心</el-menu-item>
+  </el-menu>
+  <div class="home-div">
+    <keep-alive>
+      <Home v-if="menuIdx === '1'" :menu-idx="menuIdx" />
+    </keep-alive>
+    <keep-alive>
+      <Setting v-if="menuIdx === '2'" :menu-idx="menuIdx" />
+    </keep-alive>
+  </div>
+</template>
+
+<style scoped>
+.my-menu {
+  height: 35px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 999;
+}
+
+.home-div {
+  /* margin-top: 40px; */
+  height: 100%;
+  /* background-color: red; */
+}
+</style>

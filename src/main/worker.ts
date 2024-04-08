@@ -3,20 +3,20 @@ import logger from './logger';
 import { StrUtil, FileUtil, DateUtil, HttpUtil } from './utils';
 import { GzhInfo, ArticleInfo, ArticleMeta, PdfInfo, DownloadOption, FilterRuleInfo, Service, NodeWorkerResponse, NwrEnum, DlEventEnum } from './service';
 import axios from 'axios';
-import axiosRetry from 'axios-retry';
 import md5 from 'blueimp-md5';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as mysql from 'mysql2';
 import * as Readability from '@mozilla/readability';
+import * as cheerio from 'cheerio';
+import { JSDOM } from 'jsdom';
+import axiosRetry from 'axios-retry';
 
 const onRetry = (retryCount, _err, requestConfig) => {
   logger.info(`第${retryCount}次请求失败`, requestConfig.url, requestConfig.params);
 };
 axiosRetry(axios, { retries: 3, onRetry });
 
-const cheerio = require('cheerio');
-const { JSDOM } = require('jsdom');
 const service = new Service();
 // html转markdown的TurndownService
 const turndownService = service.createTurndownService();
@@ -71,6 +71,7 @@ if (!port) throw new Error('IllegalState');
 
 // 接收消息，执行任务
 port.on('message', async (message: NodeWorkerResponse) => {
+  console.log(777);
   if (message.code == NwrEnum.START) {
     // 初始化数据库连接
     await createMysqlConnection();
@@ -297,7 +298,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 判断是否保存markdown
   if (1 == downloadOption.dlMarkdown) {
     proArr.push(
-      new Promise((resolve, _reject) => {
+      new Promise((resolve) => {
         const markdownStr = turndownService.turndown($.html());
         // 添加评论
         const commentStr = service.getMarkdownComment(articleInfo.commentList, articleInfo.replyDetailMap);
@@ -311,7 +312,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 判断是否保存html
   if (1 == downloadOption.dlHtml) {
     proArr.push(
-      new Promise((resolve, _reject) => {
+      new Promise((resolve) => {
         const $html = cheerio.load($.html());
         // 添加样式美化
         const headEle = $html('head');
@@ -333,7 +334,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 判断是否保存pdf
   if (1 == downloadOption.dlPdf) {
     proArr.push(
-      new Promise((resolve, _reject) => {
+      new Promise((resolve) => {
         const $pdf = cheerio.load($.html());
         // 添加样式美化
         const headEle = $pdf('head');
@@ -360,7 +361,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
   // 判断是否保存到数据库
   if (1 == downloadOption.dlMysql && CONNECTION_STATE && saveToDb) {
     proArr.push(
-      new Promise((resolve, _reject) => {
+      new Promise((resolve) => {
         // 是否要清洗markdown并保存数据库（这是个人需求）
         let markdownStr: string = '';
         if (1 == downloadOption.cleanMarkdown) {
@@ -370,7 +371,7 @@ async function dlOne(articleInfo: ArticleInfo, saveToDb = true) {
         }
 
         const modSqlParams = [articleInfo.title, articleInfo.html, articleInfo.author, articleInfo.contentUrl, articleInfo.datetime, articleInfo.copyrightStat, JSON.stringify(articleInfo.commentList), JSON.stringify(articleInfo.replyDetailMap), articleInfo.digest, articleInfo.cover, articleInfo.metaInfo?.jsName, markdownStr, articleInfo.title, articleInfo.datetime];
-        CONNECTION.query(INSERT_SQL, modSqlParams, function (err, _result) {
+        CONNECTION.query(INSERT_SQL, modSqlParams, function (err) {
           if (err) {
             logger.error('mysql插入失败', err);
           } else {
@@ -1095,7 +1096,6 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     const dateTime = new Date(commMsgInfo['datetime'] * 1000);
     // 判断，如果小于开始时间，直接退出
     if (dateTime < startDate) {
-      articleCount[0] = articleCount[0] + articleArr.length - oldArticleLengh;
       flgContinue = false;
       break;
     }
@@ -1164,7 +1164,7 @@ async function createMysqlConnection(): Promise<mysql.Connection> {
 
   CONNECTION = mysql.createConnection(connectionConfig);
   // 这里是想阻塞等待连接成功
-  return new Promise((resolve, _reject) => {
+  return new Promise((resolve) => {
     const sql = 'show tables';
     CONNECTION.query(sql, (err) => {
       if (err) {

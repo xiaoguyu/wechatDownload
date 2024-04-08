@@ -1,6 +1,7 @@
 import { StrUtil } from './utils';
 
-const cheerio = require('cheerio');
+import * as cheerio from 'cheerio';
+import TurndownService from 'turndown';
 
 // 获取公号文章列表需要的信息
 class GzhInfo {
@@ -690,7 +691,6 @@ class Service {
    * 创建html转markdown的TurndownService
    */
   public createTurndownService() {
-    const TurndownService = require('turndown');
     const turndownService = new TurndownService({ codeBlockStyle: 'fenced' });
     // 音频原样输出
     turndownService.addRule('audio', {

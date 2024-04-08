@@ -1,163 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <title>wechatDownload</title>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
-
-    <link href="./assets/styles.css" type="text/css" rel="stylesheet" />
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
   </head>
 
   <body>
-    <div class="menu">
-      <ul class="menu-ul">
-        <li value="main-contain" class="active">主页面</li>
-        <li value="setting-contain">设置中心</li>
-      </ul>
-    </div>
-    <div class="contain">
-      <!-- 主页面 -->
-      <div class="cselect main-contain">
-        <div class="tool-div">
-          <input id="url-input" value="" placeholder="输入微信文章链接，点击右侧下载按钮" />
-          <button id="dlOne">下载</button>
-          <button id="dlBatch">批量下载</button>
-          <button id="dlRestrictionsBatch">监控下载</button>
-        </div>
-        <div id="log-div" class="log-div">
-          <div class="desc-div">
-            <p>本软件开源免费！</p>
-            <p>源码地址：<a target="_blank" href="https://github.com/xiaoguyu/wechatDownload">wechatDownload</a></p>
-            <p>初次运行请花点时间看看此说明！</p>
-            <p>单篇文章下载输入链接可直接使用，批量下载功能需要开启代理</p>
-            <p>使用代理需要安装证书，证书路径请前往设置中心查看</p>
-            <p>证书安装完成请重启软件再使用</p>
-            <p>Window：证书直接双击 rootCA.crt 安装即可</p>
-            <p>Mac：别问我，问就是没Mac</p>
-            <p>Ubuntu：别问，不会</p>
-            <p>电脑没法上网可能是代理问题，试试打开此软件再关闭软件</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- 设置页面 -->
-      <div class="cselect setting-contain">
-        <div class="top">首次运行需要安装证书(安装一次即可)，请手动完成此设置：<button id="install-licence">安装证书</button> <button id="open-licence">打开证书路径</button></div>
-        <div class="middle">
-          <div class="left">
-            <div class="div-border">
-              <div>下载来源</div>
-              <input type="radio" name="dlSource" value="web" />网络 <input type="radio" name="dlSource" value="db" />数据库
-            </div>
-            <div class="div-border" title="json格式" style="padding-right: 15px;">
-              <div>过滤规则：</div>
-              <input name="filterRule" style="width: 100%;" />
-            </div>
-            <div class="multi">
-              <div class="multi-item">
-                <div class="item"><input type="checkbox" name="dlHtml" />下载为html</div>
-                <div class="item"><input type="checkbox" name="dlMarkdown" />下载为markdown</div>
-                <div class="item"><input type="checkbox" name="dlPdf" />下载为pdf</div>
-                <div class="item"><input type="checkbox" name="dlMysql" />保存至Mysql</div>
-                <div title="不勾选则覆盖现有文章" class="item"><input type="checkbox" name="skinExist" />跳过现有文章</div>
-                <div title="包含作者、公号名、ip地址、封面等" class="item"><input type="checkbox" name="saveMeta" />保存元数据</div>
-              </div>
-              <div class="multi-item">
-                <div class="item"><input type="checkbox" name="dlAudio" />下载音频到本地</div>
-                <div title="不勾选则使用网络图片" class="item"><input type="checkbox" name="dlImg" />下载图片到本地</div>
-                <div class="item"><input type="checkbox" name="dlComment" />下载评论</div>
-                <div title="需频繁请求微信接口，慎选" class="item"><input type="checkbox" name="dlCommentReply" />下载评论回复</div>
-                <div class="item"><input type="checkbox" name="sourceUrl" />添加原文链接</div>
-                <div title="按公众号名字保存到不同文件夹" class="item"><input type="checkbox" name="classifyDir" />按公号分类保存</div>
-              </div>
-            </div>
-          </div>
-          <div class="right">
-            <div class="item div-border">
-              下载范围<br />
-              <input type="radio" name="dlScpoe" value="all" />全部 <input type="radio" name="dlScpoe" value="one" />今日 <input type="radio" name="dlScpoe" value="seven" />7天内 <input type="radio" name="dlScpoe" value="month" />一个月内<br />
-              <input type="radio" name="dlScpoe" value="diy" />自定义 <input type="date" name="startDate" /> ~ <input type="date" name="endDate" />
-            </div>
-            <div title="不懂的建议使用默认配置,间隔:500,单批:10" class="div-border thread-div">
-              <div>线程配置</div>
-              <div>
-                <span title="下载完一篇文章再继续下载下一篇">
-                  <input type="radio" name="threadType" value="single" />单线程
-                </span>
-                <span title="批量下载">
-                  <input type="radio" name="threadType" value="multi" />多线程
-                </span>
-              </div>
-              <div>
-                <span title="单位毫秒">
-                  下载间隔：<input type="number" name="dlInterval" min="0" oninput="this.value=this.value.replace(/\D/g);" placeholder="单位毫秒" />
-                </span>
-                <span class="batch-limit">
-                  单批数量：<input type="number" name="batchLimit" min="1" oninput="this.value=this.value.replace(/\D/g);" />
-                </span>
-              </div>
-            </div>
-            <div class="item mysql-option div-border">
-              Mysql配置<button id="test-connect">测试连接</button>
-              <br />
-              <div>
-                <div>主机：</div>
-                <input name="mysqlHost" />
-              </div>
-              <div>
-                <div>端口：</div>
-                <input name="mysqlPort" />
-              </div>
-              <div>
-                <div>用户名：</div>
-                <input name="mysqlUser" />
-              </div>
-              <div>
-                <div>密码：</div>
-                <input type="password" name="mysqlPassword" />
-              </div>
-              <div>
-                <div>数据库：</div>
-                <input name="mysqlDatabase" />
-              </div>
-              <div>
-                <div>表名：</div>
-                <input name="tableName" />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="foot">
-          <div class="foot-item">
-            <div>保存路径</div>
-            <div class="item">
-              <input type="text" id="savePath" name="savePath" disabled />
-              <button id="choseSavePath">选择路径</button>
-            </div>
-          </div>
-          <div class="foot-item">
-            <div>缓存路径</div>
-            <div class="item">
-              <input type="text" id="tmpPath" name="tmpPath" disabled />
-              <button id="choseTmpPath">选择路径</button>
-            </div>
-          </div>
-        </div>
-        <div class="update-div">
-          <div>
-            <span>当前版本：</span><span id="version-span">v1.0</span>
-            <button id="check-update">检查更新</button>
-            <button id="open-logs-dir">打开日志位置</button>
-          </div>
-          <div id="progress-div" class="progress-div">
-            <progress id="update-progress" value="0" max="100"></progress>
-            <span id="transferred-span" class="transferred">0/0M</span>
-          </div>
-          <div id="update-msg-div"></div>
-        </div>
-      </div>
-    </div>
-
-    <script type="module" src="./src/renderer.ts"></script>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -1,0 +1,22 @@
+@import './base.css';
+
+/* body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-image: url('./wavy-lines.svg');
+  background-size: cover;
+  user-select: none;
+} */
+
+
+#app {
+  display: flex;
+  /* align-items: center; */
+  justify-content: center;
+  flex-direction: column;
+	height: 100%;
+	width: 100%;
+  padding-top: 40px;
+}

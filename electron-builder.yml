@@ -1,4 +1,4 @@
-appId: com.electron.app
+appId: com.javaedit.app
 productName: wechatDownload
 directories:
   buildResources: build
@@ -6,12 +6,11 @@ files:
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.js,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-asar: true
 asarUnpack:
-  - '**/*.{node,dll}'
-afterSign: build/notarize.js
+  - resources/**
 win:
   executableName: wechatDownload
 nsis:
@@ -30,6 +29,7 @@ mac:
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
@@ -48,6 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   修改了表结构，请去源码目录/doc/mysql.sql查看。
-   新增过滤规则，支持文章和作者关键词过滤。
-   修复音频无法下载的问题。
+   没有新增功能，只是修改了页面样式，更不更新都可以。

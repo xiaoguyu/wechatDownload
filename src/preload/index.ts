@@ -2,23 +2,7 @@ import { contextBridge, shell, ipcRenderer, OpenDialogOptions, MessageBoxOptions
 import { electronAPI } from '@electron-toolkit/preload';
 
 // Custom APIs for renderer
-const api = {};
-
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI);
-    contextBridge.exposeInMainWorld('api', api);
-  } catch (error) {
-    console.error(error);
-  }
-} else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI;
-  // @ts-ignore (define in dts)
-  window.api = api;
-}
-
-contextBridge.exposeInMainWorld('electronApi', {
+const api = {
   /*** render->main ***/
   // 安装证书
   installLicence: () => ipcRenderer.send('install-licence'),
@@ -66,4 +50,21 @@ contextBridge.exposeInMainWorld('electronApi', {
   updateMsg: (callback) => ipcRenderer.on('update-msg', callback),
   // 发送下载进度
   downloadProgress: (callback) => ipcRenderer.on('download-progress', callback)
-});
+};
+
+// Use `contextBridge` APIs to expose Electron APIs to
+// renderer only if context isolation is enabled, otherwise
+// just add to the DOM global.
+if (process.contextIsolated) {
+  try {
+    contextBridge.exposeInMainWorld('electron', electronAPI);
+    contextBridge.exposeInMainWorld('api', api);
+  } catch (error) {
+    console.error(error);
+  }
+} else {
+  // @ts-ignore (define in dts)
+  window.electron = electronAPI;
+  // @ts-ignore (define in dts)
+  window.api = api;
+}
