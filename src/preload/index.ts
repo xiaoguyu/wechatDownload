@@ -39,11 +39,15 @@ const api = {
   },
   // 检查更新
   checkForUpdate: () => ipcRenderer.send('check-for-update'),
+  // 生成epub
+  createEpub: (options: any) => ipcRenderer.send('create-epub', options),
   /*** main->render ***/
   // 用于打开文件夹之后接收打开的路径
   openDialogCallback: (callback) => ipcRenderer.on('open-dialog-callback', callback),
   // 输出日志
   outputLog: (callback) => ipcRenderer.on('output-log', callback),
+  // 输出Epub日志
+  outputEpubLog: (callback) => ipcRenderer.on('output-log', callback),
   // 下载完成
   downloadFnish: (callback) => ipcRenderer.on('download-fnish', callback),
   // 发送更新信息

@@ -71,7 +71,6 @@ if (!port) throw new Error('IllegalState');
 
 // 接收消息，执行任务
 port.on('message', async (message: NodeWorkerResponse) => {
-  console.log(777);
   if (message.code == NwrEnum.START) {
     // 初始化数据库连接
     await createMysqlConnection();

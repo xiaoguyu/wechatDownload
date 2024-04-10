@@ -26,7 +26,7 @@ Electron + Typescript + VUE3
 
 ### 使用
 
-![image-20230112181356841](doc/imgages/main.png)
+![image-20230112181356841](doc/imgages/main.jpg)
 
 ![image-20230821104149231](doc/imgages/setting.jpg)
 
@@ -112,7 +112,16 @@ Electron + Typescript + VUE3
   }
   ```
   
-  
+- 生成Epub
+
+  支持通过 HTML 文件生成 Epub 电子书，所以使用需要先使用**批量下载**将公众号文章保存到本地，再生成 Epub
+
+  使用参数如下
+
+  - 文件名：必要参数。例如填写 **test**，最后就会生成 **test.epub** 文件
+
+  - 文件夹：必要参数。保存了 HTML 文件的文件夹，也就是 Epub 的数据来源
+  - 封面图片：Epub 文件的封面图片，支持 jpg、png 格式
 
 ### 功能
 

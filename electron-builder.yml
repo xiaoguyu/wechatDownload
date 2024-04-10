@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   没有新增功能，只是修改了页面样式，更不更新都可以。
+   新增将多个HTML文件转换成Epub电子书的功能

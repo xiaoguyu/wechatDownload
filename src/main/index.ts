@@ -9,6 +9,7 @@ import { HttpUtil } from './utils';
 import logger from './logger';
 import { GzhInfo, ArticleInfo, PdfInfo, NodeWorkerResponse, NwrEnum, DlEventEnum, DownloadOption } from './service';
 import creatWorker from './worker?nodeWorker';
+import createEpubWorker from './epubWorker?nodeWorker';
 import * as fs from 'fs';
 import icon from '../../resources/icon.png?asset';
 import * as child_process from 'child_process';
@@ -148,6 +149,30 @@ app.whenReady().then(() => {
   ipcMain.on('load-init-info', (event) => {
     // 暂时只需要版本号
     event.returnValue = app.getVersion();
+  });
+  // 生成epub
+  ipcMain.on('create-epub', (_event, options: any) => {
+    options.tmpPath = store.get('tmpPath');
+    const epubWorker = createEpubWorker({
+      workerData: options
+    });
+
+    epubWorker.on('message', (message) => {
+      const nwResp: NodeWorkerResponse = message;
+      switch (nwResp.code) {
+        case NwrEnum.SUCCESS:
+        case NwrEnum.FAIL:
+          outputLog(nwResp.message, true);
+          break;
+        case NwrEnum.CLOSE:
+          outputEpubLog('<hr />', true, true);
+          // 关闭线程
+          epubWorker.terminate();
+      }
+    });
+
+    outputLog('生成Epub线程启动中');
+    epubWorker.postMessage(new NodeWorkerResponse(NwrEnum.START, ''));
   });
 
   createWindow();
@@ -509,7 +534,15 @@ async function testMysqlConnection() {
 async function outputLog(msg: string, append = false, flgHtml = false) {
   MAIN_WINDOW.webContents.send('output-log', msg, append, flgHtml);
 }
-
+/*
+ * 输出日志到生成Epub页面
+ * msg：输出的消息
+ * append：是否追加
+ * flgHtml：消息是否是html
+ */
+async function outputEpubLog(msg: string, append = false, flgHtml = false) {
+  MAIN_WINDOW.webContents.send('output-epub-log', msg, append, flgHtml);
+}
 /*
  * 第一次运行，默认设置
  */

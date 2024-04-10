@@ -34,6 +34,8 @@ declare global {
       loadInitInfo: () => string;
       // 检查更新
       checkForUpdate();
+      // 生成epub
+      createEpub(options: any);
 
       /*** main->render ***/
       // 用于打开文件夹之后接收打开的路径
@@ -45,6 +47,8 @@ declare global {
        * flgHtml：消息是否是html
        */
       outputLog(callback: (event: IpcRendererEvent, msg: string, flgAppend = false, flgHtml = false) => void);
+      //  输出日志到生成Epub页面
+      outputEpubLog(callback: (event: IpcRendererEvent, msg: string, flgAppend = false, flgHtml = false) => void);
       // 下载完成后做的处理
       downloadFnish(callback: (event: IpcRendererEvent) => void);
       /*

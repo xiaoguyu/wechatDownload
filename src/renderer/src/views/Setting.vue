@@ -221,7 +221,6 @@ watch(settingInfo, async (_oldInfo, newInfo) => {
   for (const settingKey in newInfo) {
     const settingItem = newInfo[settingKey];
     if (settingItem != settingInfoOrigin[settingKey]) {
-      console.log(settingKey, settingItem);
       storeSet(settingKey, settingItem);
     }
   }
