@@ -48,4 +48,4 @@ publish:
   repo: wechatDownload
 releaseInfo:
   releaseNotes: |
-   新增将多个HTML文件转换成Epub电子书的功能
+   修复单线程下载无法获取评论的问题

@@ -1,6 +1,6 @@
 {
   "name": "wechatDownload",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "An Electron application with Vue and TypeScript",
   "main": "./out/main/index.mjs",
   "author": "javaedit.com",

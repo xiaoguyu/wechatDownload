@@ -1116,6 +1116,7 @@ async function downList(nextOffset: number, articleArr: ArticleInfo[], startDate
     for (let i = 0; i < articleArr.length; i++) {
       const article = articleArr.shift();
       if (article) {
+        article.gzhInfo = GZH_INFO;
         await axiosDlOne(article);
         // 下载间隔
         await sleep(downloadOption.dlInterval);
